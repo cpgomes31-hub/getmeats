@@ -1,0 +1,20 @@
+{
+  // Trate arquivos .css como PostCSS/Tailwind para evitar avisos sobre @tailwind
+  "files.associations": {
+    "*.css": "postcss"
+  },
+
+  // Desabilita a validação CSS built-in (o Tailwind IntelliSense fornece melhores avisos)
+  "css.validate": false,
+
+  // Configura a extensão Tailwind para reconhecer linguagens comuns no projeto
+  "tailwindCSS.includeLanguages": {
+    "postcss": "css",
+    "css": "css",
+    "html": "html",
+    "javascript": "javascript",
+    "javascriptreact": "javascriptreact",
+    "typescript": "typescript",
+    "typescriptreact": "typescriptreact"
+  }
+}

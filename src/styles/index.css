@@ -1,0 +1,43 @@
+@import url('https://fonts.googleapis.com/css2?family=Berkshire+Swash&display=swap');
+
+:root {
+  --brand: #e61414;
+}
+
+html, body, #root {
+  height: 100%;
+}
+
+body {
+  font-family: Inter, system-ui, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue', Arial;
+  background: #000;
+  color: #fff;
+}
+
+.font-script { font-family: 'Berkshire Swash', cursive; }
+.font-serif { font-family: 'ZaridSerif', serif; }
+.text-brand { color: var(--brand); }
+.bg-brand { background-color: var(--brand); }
+
+/* Placeholder for 29LT Zarid Serif - please provide the font files (.woff/.woff2) and place them in /src/assets/fonts/ */
+@font-face {
+  font-family: 'ZaridSerif';
+  src: url('/src/assets/fonts/29LT-Zarid-Serif.woff2') format('woff2');
+  font-weight: 700;
+  font-style: normal;
+  font-display: swap;
+}
+
+/* Logo custom styles */
+.logo-meats {
+  -webkit-text-stroke: 0.15px #fff;
+  text-stroke: 0.15px #fff;
+  text-shadow: 0 2px 8px rgba(0,0,0,0.5);
+  font-weight: bold;
+  margin-top: 0.5mm;
+}
+
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
