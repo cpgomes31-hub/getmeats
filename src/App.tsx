@@ -5,16 +5,20 @@ import Login from './pages/Login'
 import CompleteProfile from './pages/CompleteProfile'
 import Purchase from './pages/Purchase'
 import MyOrders from './pages/MyOrders'
+import AdminLogin from './pages/AdminLogin'
 import AdminPage from './pages/Admin'
 import AdminNewBox from './pages/AdminNewBox'
 import AdminBoxDetails from './pages/AdminBoxDetails'
 import AdminEditBox from './pages/AdminEditBox'
 import AdminRoute from './components/AdminRoute'
+import { useAuth } from './context/AuthContext'
 
 // Importar função de teste do Mercado Pago para debug
 import './mercadopago/test-token.js'
 
 export default function App() {
+  const { user, profile, logout } = useAuth()
+
   return (
     <div className="min-h-screen bg-black text-white">
       <header className="px-6 py-4 border-b border-gray-800 flex items-center justify-between">
@@ -24,9 +28,24 @@ export default function App() {
         </div>
         <nav className="space-x-4">
           <Link to="/" className="text-gray-300 hover:text-white">Caixas</Link>
-          <Link to="/my-orders" className="text-gray-300 hover:text-white">Meus Pedidos</Link>
-          <Link to="/admin" className="text-gray-300 hover:text-white">Admin</Link>
-          <Link to="/login" className="text-gray-300 hover:text-white">Entrar</Link>
+          {user && profile?.role !== 'manager' && (
+            <Link to="/my-orders" className="text-gray-300 hover:text-white">Meus Pedidos</Link>
+          )}
+          {profile?.role === 'manager' ? (
+            <Link to="/admin" className="text-gray-300 hover:text-white">Admin</Link>
+          ) : (
+            <Link to="/admin-login" className="text-gray-300 hover:text-white">Admin</Link>
+          )}
+          {user ? (
+            <button
+              onClick={logout}
+              className="text-gray-300 hover:text-white"
+            >
+              Sair
+            </button>
+          ) : (
+            <Link to="/login" className="text-gray-300 hover:text-white">Entrar</Link>
+          )}
         </nav>
       </header>
 
@@ -34,6 +53,7 @@ export default function App() {
         <Routes>
           <Route path="/" element={<Home />} />
           <Route path="/login" element={<Login />} />
+          <Route path="/admin-login" element={<AdminLogin />} />
           <Route path="/complete-profile" element={<CompleteProfile />} />
           <Route path="/purchase/:boxId" element={<Purchase />} />
           <Route path="/my-orders" element={<MyOrders />} />

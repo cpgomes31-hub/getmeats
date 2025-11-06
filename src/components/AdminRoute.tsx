@@ -24,6 +24,9 @@ export default function AdminRoute({ children }: AdminRouteProps) {
     return <Navigate to="/login" replace />
   }
 
-  // Permitir acesso mas passar informação sobre permissões via contexto
+  if (profile?.role !== 'manager') {
+    return <Navigate to="/admin-login" replace />
+  }
+
   return <>{children}</>
 }

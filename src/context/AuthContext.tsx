@@ -1,11 +1,12 @@
 import React, { createContext, useContext, useEffect, useState } from 'react'
 import { User } from 'firebase/auth'
-import { onAuthChanged, getUserProfile } from '../firebase/auth'
+import { onAuthChanged, getUserProfile, logout as firebaseLogout } from '../firebase/auth'
 
 type AuthContextValue = {
   user: User | null
   profile: any | null
   loading: boolean
+  logout: () => Promise<void>
 }
 
 const AuthContext = createContext<AuthContextValue | undefined>(undefined)
@@ -29,7 +30,17 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     return () => unsub()
   }, [])
 
-  return <AuthContext.Provider value={{ user, profile, loading }}>{children}</AuthContext.Provider>
+  const handleLogout = async () => {
+    try {
+      await firebaseLogout()
+      setUser(null)
+      setProfile(null)
+    } catch (error) {
+      console.error('Error logging out:', error)
+    }
+  }
+
+  return <AuthContext.Provider value={{ user, profile, loading, logout: handleLogout }}>{children}</AuthContext.Provider>
 }
 
 export function useAuth() {
