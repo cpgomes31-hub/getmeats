@@ -110,28 +110,34 @@ src/
 
 ## 🎯 Como Usar
 
-### Para Administradores
-1. Faça login e ative permissões de admin
-2. Crie caixas de carne no painel
-3. Monitore pedidos e gerencie produtos
+### 👤 Clientes (Usuários Finais)
+1. **Página Inicial**: Visualize todas as caixas de carne disponíveis
+2. **Login**: Faça login com Google ou email/senha
+3. **Complete seu perfil**: Adicione dados pessoais necessários
+4. **Faça pedidos**: Sinalize interesse nas caixas desejadas
+5. **Acompanhe pagamentos**: Receba links Pix por email
+6. **Meus Pedidos**: Acompanhe status e copie links de pagamento (apenas quando logado)
 
-### Para Clientes
-1. Navegue pelas caixas disponíveis
-2. Faça login ou cadastre-se
-3. Complete seu perfil com dados pessoais
-4. Sinalize interesse e complete cadastro
-5. Receba email com link Pix
-6. Efetue o pagamento
-7. Acompanhe seus pedidos em "Meus Pedidos" (menu aparece apenas para usuários logados)
-8. Copie links de pagamento caso necessário
+### 👨‍💼 Administradores/Gestores
+1. **Login Admin**: Clique em "Admin" no menu
+2. **Credenciais**:
+   - **Email:** `admin@getmeats.com`
+   - **Senha:** `123`
+3. **Painel Completo**: Gerencie caixas, pedidos e usuários
+4. **Sistema Independente**: Não utiliza Firebase Auth
 
-### Para Administradores/Gestores
-1. Clique em "Admin" no menu
-2. Use as credenciais administrativas:
-   - **Email:** admin@getmeats.com
-   - **Senha:** 123
-3. Acesse o painel completo de gestão
-4. Gerencie caixas, pedidos e usuários
+### 🔄 Estados de Navegação
+
+#### **Não Logado**:
+- Página Inicial | Entrar | Admin
+
+#### **Logado como Cliente**:
+- Página Inicial | Meus Pedidos | Sair
+
+#### **Logado como Admin**:
+- Página Inicial | Admin | Sair
+
+#### **Logout**: Sempre redireciona para Página Inicial
 
 ## � Sistema de Autenticação
 
