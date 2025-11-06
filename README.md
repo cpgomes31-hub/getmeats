@@ -117,18 +117,44 @@ src/
 
 ### Para Clientes
 1. Navegue pelas caixas disponíveis
-2. Sinalize interesse e complete cadastro
-3. Receba email com link Pix
-4. Efetue o pagamento
-5. Acompanhe seus pedidos em "Meus Pedidos"
-6. Copie links de pagamento caso necessário
+2. Faça login ou cadastre-se
+3. Complete seu perfil com dados pessoais
+4. Sinalize interesse e complete cadastro
+5. Receba email com link Pix
+6. Efetue o pagamento
+7. Acompanhe seus pedidos em "Meus Pedidos" (menu aparece apenas para usuários logados)
+8. Copie links de pagamento caso necessário
 
-## 🔒 Segurança
+### Para Administradores/Gestores
+1. Clique em "Admin" no menu
+2. Use as credenciais administrativas:
+   - **Email:** admin@getmeats.com
+   - **Senha:** 123
+3. Acesse o painel completo de gestão
+4. Gerencie caixas, pedidos e usuários
 
-- Tokens sensíveis em variáveis de ambiente
-- Autenticação obrigatória para ações admin
-- Headers de segurança no proxy Vite
-- Validação de dados em todas as operações
+## � Sistema de Autenticação
+
+O sistema possui **dois tipos de usuários** com autenticação separada:
+
+### 👤 Clientes
+- Login via **Google** ou **email/senha**
+- Acesso ao catálogo de produtos
+- Área "Meus Pedidos" (apenas quando logado)
+- Fluxo completo de compra
+
+### 👨‍💼 Administradores/Gestores
+- Login dedicado com credenciais específicas
+- **Email:** `admin@getmeats.com`
+- **Senha:** `123`
+- Acesso completo ao painel administrativo
+- Gestão de caixas, pedidos e usuários
+
+### 🔄 Regras de Autenticação
+- **Usuários não podem estar logados simultaneamente** como cliente e admin
+- **Menu "Meus Pedidos"** aparece apenas para clientes logados
+- **Menu "Admin"** redireciona para login administrativo se não estiver logado como gestor
+- **Botão "Sair"** disponível para logout completo
 
 ## 📊 Status do Projeto
 
