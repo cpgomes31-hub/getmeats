@@ -3,7 +3,7 @@ import { useNavigate, useParams } from 'react-router-dom'
 import { getDoc, doc } from 'firebase/firestore'
 import { getFirestore } from 'firebase/firestore'
 import { app } from '../firebase/config'
-import { createPurchase, updateBox } from '../firebase/boxes'
+import { createPurchase, updatePurchase, updateBox } from '../firebase/boxes'
 import { useAuth } from '../context/AuthContext'
 import { MeatBox } from '../types'
 import { createPixPayment } from '../mercadopago/pix'
@@ -76,10 +76,11 @@ export default function Purchase() {
       const totalAmount = kg * box.pricePerKg
 
       // Create purchase
-      await createPurchase({
+      const purchaseId = await createPurchase({
         boxId: box.id,
         userId: user.uid,
         kgPurchased: kg,
+        totalAmount,
         status: 'awaiting_box_closure',
         paymentStatus: box.paymentType === 'prepaid' ? 'pending' : 'paid',
       })
@@ -97,6 +98,12 @@ export default function Purchase() {
             description: `Compra de ${kg}kg de ${box.name}`,
             payerEmail: user.email || '',
             payerName: profile.name || '',
+          })
+
+          // Update purchase with payment link
+          await updatePurchase(purchaseId, {
+            paymentLink: pixPayment.paymentLink,
+            paymentExpiresAt: pixPayment.expiresAt,
           })
 
           // Send email with payment link

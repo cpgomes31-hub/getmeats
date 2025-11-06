@@ -28,11 +28,15 @@ export type BoxStatus =
 
 export interface Purchase {
   id: string; // Unique ID
+  orderNumber: string; // Internal order number for easy identification
   boxId: string; // Reference to the meat box
   userId: string; // Reference to the customer
   kgPurchased: number; // Kg purchased by the customer
+  totalAmount: number; // Total amount paid (kg * pricePerKg)
   status: PurchaseStatus; // Status of the purchase
   paymentStatus: 'pending' | 'paid' | 'refunded'; // Payment status
+  paymentLink?: string; // Pix payment link (for prepaid purchases)
+  paymentExpiresAt?: string; // When the payment expires (ISO date string)
   actualKgDelivered?: number; // Actual kg delivered (filled by manager)
   refundAmount?: number; // Refund amount if applicable
   createdAt: string; // ISO date string

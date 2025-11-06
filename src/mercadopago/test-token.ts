@@ -42,7 +42,7 @@ export async function testPixCreation() {
     console.log('📊 Link:', result.paymentLink);
 
   } catch (error) {
-    console.log('❌ Falha na criação do Pix:', error.message);
+    console.log('❌ Falha na criação do Pix:', error instanceof Error ? error.message : error);
   }
 }
 

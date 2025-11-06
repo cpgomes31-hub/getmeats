@@ -84,14 +84,25 @@ export async function getPurchasesForBox(boxId: string): Promise<Purchase[]> {
   return snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Purchase))
 }
 
-export async function createPurchase(purchaseData: Omit<Purchase, 'id' | 'createdAt' | 'updatedAt'>): Promise<string> {
+export async function createPurchase(purchaseData: Omit<Purchase, 'id' | 'orderNumber' | 'createdAt' | 'updatedAt'>): Promise<string> {
   const now = new Date().toISOString()
+  const orderNumber = `GM${Date.now().toString().slice(-8)}` // Generate order number: GM + last 8 digits of timestamp
+  
   const docRef = await addDoc(collection(db, 'purchases'), {
     ...purchaseData,
+    orderNumber,
     createdAt: now,
     updatedAt: now,
   })
   return docRef.id
+}
+
+export async function updatePurchase(purchaseId: string, updates: Partial<Purchase>): Promise<void> {
+  const docRef = doc(db, 'purchases', purchaseId)
+  await updateDoc(docRef, {
+    ...updates,
+    updatedAt: new Date().toISOString(),
+  })
 }
 
 export async function updateBoxStatus(boxId: string, status: string): Promise<void> {
@@ -100,4 +111,10 @@ export async function updateBoxStatus(boxId: string, status: string): Promise<vo
     status,
     updatedAt: new Date().toISOString(),
   })
+}
+
+export async function getPurchasesForUser(userId: string): Promise<Purchase[]> {
+  const q = query(collection(db, 'purchases'), where('userId', '==', userId), orderBy('createdAt', 'desc'))
+  const snapshot = await getDocs(q)
+  return snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Purchase))
 }

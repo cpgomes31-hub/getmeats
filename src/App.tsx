@@ -4,6 +4,7 @@ import Home from './pages/Home'
 import Login from './pages/Login'
 import CompleteProfile from './pages/CompleteProfile'
 import Purchase from './pages/Purchase'
+import MyOrders from './pages/MyOrders'
 import AdminPage from './pages/Admin'
 import AdminNewBox from './pages/AdminNewBox'
 import AdminBoxDetails from './pages/AdminBoxDetails'
@@ -23,6 +24,7 @@ export default function App() {
         </div>
         <nav className="space-x-4">
           <Link to="/" className="text-gray-300 hover:text-white">Caixas</Link>
+          <Link to="/my-orders" className="text-gray-300 hover:text-white">Meus Pedidos</Link>
           <Link to="/admin" className="text-gray-300 hover:text-white">Admin</Link>
           <Link to="/login" className="text-gray-300 hover:text-white">Entrar</Link>
         </nav>
@@ -34,6 +36,7 @@ export default function App() {
           <Route path="/login" element={<Login />} />
           <Route path="/complete-profile" element={<CompleteProfile />} />
           <Route path="/purchase/:boxId" element={<Purchase />} />
+          <Route path="/my-orders" element={<MyOrders />} />
           <Route path="/admin" element={<AdminRoute><AdminPage /></AdminRoute>} />
           <Route path="/admin/new" element={<AdminRoute><AdminNewBox /></AdminRoute>} />
           <Route path="/admin/box/:boxId" element={<AdminRoute><AdminBoxDetails /></AdminRoute>} />
