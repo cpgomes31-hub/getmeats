@@ -3,12 +3,12 @@
 import { initializeApp } from 'firebase/app'
 
 export const firebaseConfig = {
-  apiKey: 'AIzaSyAyePBbzKcAuASi5U4uz8pkqgCG92ecHIg',
-  authDomain: 'getmeats.firebaseapp.com',
-  projectId: 'getmeats',
-  storageBucket: 'getmeats.appspot.com',
-  messagingSenderId: '448977262837',
-  appId: '1:448977262837:web:ee792526b6ac636a3b8dbc'
+  apiKey: import.meta.env.VITE_FIREBASE_API_KEY,
+  authDomain: import.meta.env.VITE_FIREBASE_AUTH_DOMAIN,
+  projectId: import.meta.env.VITE_FIREBASE_PROJECT_ID,
+  storageBucket: import.meta.env.VITE_FIREBASE_STORAGE_BUCKET,
+  messagingSenderId: import.meta.env.VITE_FIREBASE_MESSAGING_SENDER_ID,
+  appId: import.meta.env.VITE_FIREBASE_APP_ID
 }
 
 export const app = initializeApp(firebaseConfig)
