@@ -1,74 +1,144 @@
-# GET Meats — prototype
+# GetMeats - E-commerce de Caixas de Carne
 
-Projeto inicial do GET Meats. Este repositório contém o scaffold inicial (Vite + React + TypeScript + Tailwind) e a página de login com integração básica ao Firebase Auth.
+Sistema completo de e-commerce para venda de caixas de carne com integração Pix do Mercado Pago.
 
-## Primeiros passos (Windows PowerShell)
+## 🚀 Funcionalidades
 
-1. Instalar dependências:
+### ✅ Implementadas
+- **Autenticação Firebase** - Login/cadastro com Google e email
+- **Sistema de Caixas** - CRUD completo de produtos
+- **Painel Admin** - Gestão completa com filtros e status
+- **Fluxo de Compra** - Sinalização de interesse e checkout
+- **Integração Pix** - Pagamentos via Mercado Pago
+- **Sistema de Emails** - Notificações automáticas via EmailJS
+- **Soft Delete** - Exclusão lógica com restauração
+- **Interface Responsiva** - Design moderno com Tailwind CSS
 
-```powershell
+### 🔄 Fluxo da Aplicação
+1. **Cliente** navega e sinaliza interesse em caixas
+2. **Sistema** gera Pix único via Mercado Pago
+3. **Email** é enviado automaticamente com link de pagamento
+4. **Admin** gerencia pedidos e caixas via painel completo
+
+## 🛠️ Tecnologias
+
+- **Frontend**: React 18 + TypeScript + Vite
+- **Backend**: Firebase (Auth + Firestore)
+- **Pagamentos**: Mercado Pago API
+- **Emails**: EmailJS
+- **Styling**: Tailwind CSS
+- **Build**: Vite
+
+## 📋 Pré-requisitos
+
+- Node.js 16+
+- Conta Google (para Firebase)
+- Conta Mercado Pago
+- Conta EmailJS
+
+## 🚀 Instalação e Configuração
+
+### 1. Clone o repositório
+```bash
+git clone https://github.com/cpgomes31-hub/getmeats.git
+cd getmeats
+```
+
+### 2. Instale as dependências
+```bash
 npm install
 ```
 
-2. Rodar em dev:
+### 3. Configure as variáveis de ambiente
+```bash
+cp .env.example .env.local
+```
 
-```powershell
+Edite `.env.local` com suas credenciais:
+
+#### Firebase
+- Acesse [Firebase Console](https://console.firebase.google.com/)
+- Crie um projeto e habilite Authentication + Firestore
+- Copie as configurações do SDK em `src/firebase/config.ts`
+
+#### Mercado Pago
+- Acesse [Mercado Pago Developers](https://www.mercadopago.com.br/developers/)
+- Crie uma aplicação e gere um Access Token
+- Configure para produção se necessário
+
+#### EmailJS
+- Acesse [EmailJS](https://www.emailjs.com/)
+- Crie serviço, template e obtenha as credenciais
+
+### 4. Execute o projeto
+```bash
 npm run dev
 ```
 
-## Configuração Mercado Pago e EmailJS
+Acesse `http://localhost:5173`
 
-Para pagamentos Pix e envio de emails:
+## 🔧 Scripts Disponíveis
 
-1. **Mercado Pago**:
-   - Crie uma conta em [Mercado Pago](https://www.mercadopago.com.br/)
-   - Acesse [Suas Integrações](https://www.mercadopago.com.br/developers/panel/app) e crie uma aplicação
-   - Obtenha o Access Token de produção/teste
-   - Adicione ao `.env.local`: `VITE_MERCADO_PAGO_ACCESS_TOKEN=seu_token_aqui`
+```bash
+npm run dev      # Inicia servidor de desenvolvimento
+npm run build    # Build para produção
+npm run preview  # Preview do build
+```
 
-   **Nota:** A integração usa a API REST com proxy Vite para resolver problemas de CORS em desenvolvimento.
+## 📁 Estrutura do Projeto
 
-2. **EmailJS**:
-   - Crie uma conta em [EmailJS](https://www.emailjs.com/)
-   - Crie um serviço de email (Gmail, Outlook, etc.)
-   - Crie um template de email com variáveis: `{{to_name}}`, `{{message}}`, `{{payment_link}}`, `{{qr_code}}`
-   - Obtenha Service ID, Template ID e Public Key
-   - Adicione ao `.env.local`:
-     ```
-     VITE_EMAILJS_SERVICE_ID=seu_service_id
-     VITE_EMAILJS_TEMPLATE_ID=seu_template_id
-     VITE_EMAILJS_PUBLIC_KEY=sua_public_key
-     ```
+```
+src/
+├── components/          # Componentes reutilizáveis
+├── context/            # Contextos React (Auth)
+├── firebase/           # Configurações e serviços Firebase
+├── mercadopago/        # Integração Mercado Pago
+├── pages/             # Páginas da aplicação
+├── services/          # Serviços externos (EmailJS)
+├── styles/            # Estilos globais
+└── types/             # Definições TypeScript
+```
 
-3. Copie `.env.example` para `.env.local` e preencha as variáveis.
+## 🎯 Como Usar
 
-## Testando a integração
+### Para Administradores
+1. Faça login e ative permissões de admin
+2. Crie caixas de carne no painel
+3. Monitore pedidos e gerencie produtos
 
-1. Abra http://localhost:5173
-2. Para adicionar dados de teste, abra o console do navegador e execute:
-   ```javascript
-   import('./firebase/test-data.js').then(m => m.addSampleBox())
-   ```
-3. Recarregue a página para ver as caixas disponíveis
-4. Teste o fluxo: Login → Completar cadastro → Sinalizar compra
+### Para Clientes
+1. Navegue pelas caixas disponíveis
+2. Sinalize interesse e complete cadastro
+3. Receba email com link Pix
+4. Efetue o pagamento
 
-## Estrutura do projeto
+## 🔒 Segurança
 
-- `src/types/`: Definições TypeScript para caixas, compras e usuários
-- `src/firebase/`: Configuração e serviços Firebase
-- `src/pages/`: Páginas da aplicação
-- `src/context/`: Contextos React (Auth)
-- `src/styles/`: Estilos globais e Tailwind
+- Tokens sensíveis em variáveis de ambiente
+- Autenticação obrigatória para ações admin
+- Headers de segurança no proxy Vite
+- Validação de dados em todas as operações
 
-## Próximos passos
+## 📊 Status do Projeto
 
-- Implementar painel de gestão para gestores
-- Adicionar upload de fotos para caixas
-- Implementar notificações e status de compras
-- Adicionar QR Code para pagamentos PIX
-- Migrar para Flutter/React Native para app mobile
+✅ **Completo e Funcional**
+- E-commerce fully operational
+- Integração Pix working
+- Sistema de emails ativo
+- Painel admin completo
 
-## Observações importantes
+## 🤝 Contribuição
 
-- A fonte '29LT Zarid Serif' é comercial — coloque os arquivos `.woff/.woff2` em `src/assets/fonts/` e remova do `.gitignore` se quiser comitar.
-- Para subir ao GitHub, inicialize o repositório localmente, adicione remoto e faça push. Recomendo usar SSH ou token pessoal para autenticar.
+1. Fork o projeto
+2. Crie uma branch para sua feature
+3. Commit suas mudanças
+4. Push para a branch
+5. Abra um Pull Request
+
+## 📝 Licença
+
+Este projeto é privado e confidencial.
+
+---
+
+**Desenvolvido com ❤️ para o GetMeats**
