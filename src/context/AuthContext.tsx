@@ -7,6 +7,7 @@ type AuthContextValue = {
   profile: any | null
   loading: boolean
   logout: () => Promise<void>
+  isAdmin: boolean
 }
 
 const AuthContext = createContext<AuthContextValue | undefined>(undefined)
@@ -15,15 +16,29 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [user, setUser] = useState<User | null>(null)
   const [profile, setProfile] = useState<any | null>(null)
   const [loading, setLoading] = useState(true)
+  const [isAdmin, setIsAdmin] = useState(false)
 
   useEffect(() => {
+    // Check for admin session in localStorage
+    const adminProfile = localStorage.getItem('adminProfile')
+    if (adminProfile) {
+      const adminData = JSON.parse(adminProfile)
+      setProfile(adminData)
+      setIsAdmin(true)
+      setLoading(false)
+      return
+    }
+
+    // Check Firebase auth for regular users
     const unsub = onAuthChanged(async u => {
       setUser(u)
       if (u) {
         const p = await getUserProfile(u.uid)
         setProfile(p)
+        setIsAdmin(false)
       } else {
         setProfile(null)
+        setIsAdmin(false)
       }
       setLoading(false)
     })
@@ -32,6 +47,11 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   const handleLogout = async () => {
     try {
+      // Clear admin session if exists
+      localStorage.removeItem('adminProfile')
+      setIsAdmin(false)
+
+      // Logout from Firebase if logged in
       await firebaseLogout()
       setUser(null)
       setProfile(null)
@@ -40,7 +60,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
   }
 
-  return <AuthContext.Provider value={{ user, profile, loading, logout: handleLogout }}>{children}</AuthContext.Provider>
+  return <AuthContext.Provider value={{ user, profile, loading, logout: handleLogout, isAdmin }}>{children}</AuthContext.Provider>
 }
 
 export function useAuth() {

@@ -1,5 +1,5 @@
 import React from 'react'
-import { Routes, Route, Link } from 'react-router-dom'
+import { Routes, Route, Link, useNavigate } from 'react-router-dom'
 import Home from './pages/Home'
 import Login from './pages/Login'
 import CompleteProfile from './pages/CompleteProfile'
@@ -17,7 +17,8 @@ import { useAuth } from './context/AuthContext'
 import './mercadopago/test-token.js'
 
 export default function App() {
-  const { user, profile, logout } = useAuth()
+  const { user, profile, logout, isAdmin } = useAuth()
+  const navigate = useNavigate()
 
   return (
     <div className="min-h-screen bg-black text-white">
@@ -27,24 +28,32 @@ export default function App() {
           <div className="font-script text-brand text-5xl font-bold px-2 logo-meats">Meats</div>
         </div>
         <nav className="space-x-4">
-          <Link to="/" className="text-gray-300 hover:text-white">Caixas</Link>
-          {user && profile?.role !== 'manager' && (
-            <Link to="/my-orders" className="text-gray-300 hover:text-white">Meus Pedidos</Link>
-          )}
-          {profile?.role === 'manager' ? (
-            <Link to="/admin" className="text-gray-300 hover:text-white">Admin</Link>
+          <Link to="/" className="text-gray-300 hover:text-white">Página Inicial</Link>
+          {user || isAdmin ? (
+            // Usuário logado (cliente ou admin)
+            <>
+              {!isAdmin && (
+                <Link to="/my-orders" className="text-gray-300 hover:text-white">Meus Pedidos</Link>
+              )}
+              {isAdmin && (
+                <Link to="/admin" className="text-gray-300 hover:text-white">Admin</Link>
+              )}
+              <button
+                onClick={async () => {
+                  await logout()
+                  navigate('/')
+                }}
+                className="text-gray-300 hover:text-white"
+              >
+                Sair
+              </button>
+            </>
           ) : (
-            <Link to="/admin-login" className="text-gray-300 hover:text-white">Admin</Link>
-          )}
-          {user ? (
-            <button
-              onClick={logout}
-              className="text-gray-300 hover:text-white"
-            >
-              Sair
-            </button>
-          ) : (
-            <Link to="/login" className="text-gray-300 hover:text-white">Entrar</Link>
+            // Usuário não logado
+            <>
+              <Link to="/login" className="text-gray-300 hover:text-white">Entrar</Link>
+              <Link to="/admin-login" className="text-gray-300 hover:text-white">Admin</Link>
+            </>
           )}
         </nav>
       </header>

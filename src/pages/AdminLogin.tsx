@@ -1,6 +1,5 @@
 import React, { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { signInWithEmail } from '../firebase/auth'
 import { saveUserProfile } from '../firebase/auth'
 import { useAuth } from '../context/AuthContext'
 
@@ -27,20 +26,23 @@ export default function AdminLogin() {
     try {
       // Check if credentials are correct for admin
       if (email === 'admin@getmeats.com' && password === '123') {
-        // Create or sign in admin user
-        const adminUser = await signInWithEmail(email, password)
-
-        // Set admin role
-        await saveUserProfile(adminUser.uid, {
-          uid: adminUser.uid,
-          email: adminUser.email,
+        // Create admin profile in context without Firebase Auth
+        // This admin user exists only in the app context, not in Firebase
+        const adminProfile = {
+          uid: 'admin-user',
+          email: 'admin@getmeats.com',
           name: 'Administrador',
           role: 'manager',
           profileCompleted: true,
           createdAt: new Date().toISOString(),
           updatedAt: new Date().toISOString(),
-        })
+        }
 
+        // Save to localStorage for persistence
+        localStorage.setItem('adminProfile', JSON.stringify(adminProfile))
+
+        // Set admin role in context (this will be handled by AuthContext)
+        // For now, we'll redirect and let the admin page handle the role check
         navigate('/admin')
       } else {
         setError('Credenciais inválidas')

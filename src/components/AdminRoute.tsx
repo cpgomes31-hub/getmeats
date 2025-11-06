@@ -7,7 +7,7 @@ interface AdminRouteProps {
 }
 
 export default function AdminRoute({ children }: AdminRouteProps) {
-  const { user, profile, loading } = useAuth()
+  const { user, profile, loading, isAdmin } = useAuth()
 
   if (loading) {
     return (
@@ -20,11 +20,7 @@ export default function AdminRoute({ children }: AdminRouteProps) {
     )
   }
 
-  if (!user) {
-    return <Navigate to="/login" replace />
-  }
-
-  if (profile?.role !== 'manager') {
+  if (!isAdmin) {
     return <Navigate to="/admin-login" replace />
   }
 
