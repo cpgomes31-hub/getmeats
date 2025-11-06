@@ -59,7 +59,15 @@ Edite `.env.local` com suas credenciais:
 #### Firebase
 - Acesse [Firebase Console](https://console.firebase.google.com/)
 - Crie um projeto e habilite Authentication + Firestore
-- Copie as configurações do SDK em `src/firebase/config.ts`
+- Copie as configurações do SDK para o `.env.local`:
+  ```
+  VITE_FIREBASE_API_KEY=your_api_key_here
+  VITE_FIREBASE_AUTH_DOMAIN=your_project.firebaseapp.com
+  VITE_FIREBASE_PROJECT_ID=your_project_id
+  VITE_FIREBASE_STORAGE_BUCKET=your_project.appspot.com
+  VITE_FIREBASE_MESSAGING_SENDER_ID=your_sender_id
+  VITE_FIREBASE_APP_ID=your_app_id
+  ```
 
 #### Mercado Pago
 - Acesse [Mercado Pago Developers](https://www.mercadopago.com.br/developers/)
