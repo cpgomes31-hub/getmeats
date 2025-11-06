@@ -8,6 +8,7 @@ Sistema completo de e-commerce para venda de caixas de carne com integração Pi
 - **Autenticação Firebase** - Login/cadastro com Google e email
 - **Sistema de Caixas** - CRUD completo de produtos
 - **Painel Admin** - Gestão completa com filtros e status
+- **Área do Cliente** - Meus Pedidos com acompanhamento completo
 - **Fluxo de Compra** - Sinalização de interesse e checkout
 - **Integração Pix** - Pagamentos via Mercado Pago
 - **Sistema de Emails** - Notificações automáticas via EmailJS
@@ -119,6 +120,8 @@ src/
 2. Sinalize interesse e complete cadastro
 3. Receba email com link Pix
 4. Efetue o pagamento
+5. Acompanhe seus pedidos em "Meus Pedidos"
+6. Copie links de pagamento caso necessário
 
 ## 🔒 Segurança
 
@@ -134,6 +137,7 @@ src/
 - Integração Pix working
 - Sistema de emails ativo
 - Painel admin completo
+- Área do cliente com acompanhamento de pedidos
 
 ## 🤝 Contribuição
 
