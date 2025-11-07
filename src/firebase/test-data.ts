@@ -2,7 +2,7 @@
 // Run this in browser console or create a test page
 
 import { createBox } from './boxes'
-import { MeatBox } from '../types'
+import { MeatBox, BoxStatus } from '../types'
 
 export async function addSampleBox() {
   const sampleBox: Omit<MeatBox, 'id' | 'createdAt' | 'updatedAt'> = {
@@ -14,7 +14,7 @@ export async function addSampleBox() {
     totalKg: 20,
     remainingKg: 20,
     minKgPerPerson: 1,
-    status: 'awaiting_customer_purchases',
+    status: BoxStatus.WAITING_PURCHASES,
     paymentType: 'prepaid'
   }
 
@@ -41,7 +41,7 @@ export const addSampleData = async () => {
       totalKg: 20,
       remainingKg: 20,
       minKgPerPerson: 1,
-      status: 'awaiting_customer_purchases' as const,
+      status: BoxStatus.WAITING_PURCHASES,
       paymentType: 'prepaid' as const
     },
     {
@@ -53,7 +53,7 @@ export const addSampleData = async () => {
       totalKg: 15,
       remainingKg: 15,
       minKgPerPerson: 1,
-      status: 'awaiting_customer_purchases' as const,
+      status: BoxStatus.WAITING_PURCHASES,
       paymentType: 'prepaid' as const
     },
     {
@@ -65,7 +65,7 @@ export const addSampleData = async () => {
       totalKg: 25,
       remainingKg: 25,
       minKgPerPerson: 0.5,
-      status: 'awaiting_customer_purchases' as const,
+      status: BoxStatus.WAITING_PURCHASES,
       paymentType: 'prepaid' as const
     }
   ]

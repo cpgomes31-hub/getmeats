@@ -22,20 +22,28 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     // Check for admin session in localStorage
     const adminProfile = localStorage.getItem('adminProfile')
     if (adminProfile) {
-      const adminData = JSON.parse(adminProfile)
-      setProfile(adminData)
-      setIsAdmin(true)
-      setLoading(false)
-      return
+      try {
+        const adminData = JSON.parse(adminProfile)
+        setProfile(adminData)
+        setIsAdmin(true)
+        setLoading(false)
+        return
+      } catch (error) {
+        console.error('Error parsing admin profile:', error)
+        localStorage.removeItem('adminProfile')
+      }
     }
 
     // Check Firebase auth for regular users
     const unsub = onAuthChanged(async u => {
       setUser(u)
       if (u) {
+        // Clear admin session when Firebase user logs in
+        localStorage.removeItem('adminProfile')
+        setIsAdmin(false)
+
         const p = await getUserProfile(u.uid)
         setProfile(p)
-        setIsAdmin(false)
       } else {
         setProfile(null)
         setIsAdmin(false)

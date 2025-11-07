@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import { getAllBoxes, updateBox } from '../firebase/boxes'
-import { MeatBox } from '../types'
+import { MeatBox, BoxStatus } from '../types'
 
 interface BoxFormData {
   name: string
@@ -12,7 +12,7 @@ interface BoxFormData {
   totalKg: number
   remainingKg: number
   minKgPerPerson: number
-  status: 'awaiting_customer_purchases' | 'awaiting_supplier_purchase' | 'awaiting_supplier_delivery' | 'received_at_warehouse' | 'dispatching_to_customers' | 'completed' | 'cancelled'
+  status: BoxStatus
   paymentType: 'prepaid' | 'postpaid'
 }
 
@@ -30,7 +30,7 @@ export default function AdminEditBox() {
     totalKg: 0,
     remainingKg: 0,
     minKgPerPerson: 1,
-    status: 'awaiting_customer_purchases',
+    status: BoxStatus.WAITING_PURCHASES,
     paymentType: 'prepaid'
   })
 
@@ -278,13 +278,13 @@ export default function AdminEditBox() {
               onChange={handleInputChange}
               className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-red-500 text-gray-900"
             >
-              <option value="awaiting_customer_purchases">Aguardando Compras</option>
-              <option value="awaiting_supplier_purchase">Aguardando Fornecedor</option>
-              <option value="awaiting_supplier_delivery">Aguardando Entrega</option>
-              <option value="received_at_warehouse">Recebido no Armazém</option>
-              <option value="dispatching_to_customers">Despachando</option>
-              <option value="completed">Finalizada</option>
-              <option value="cancelled">Cancelada</option>
+              <option value={BoxStatus.WAITING_PURCHASES}>Aguardando Compras</option>
+              <option value={BoxStatus.WAITING_SUPPLIER_ORDER}>Aguardando Fornecedor</option>
+              <option value={BoxStatus.WAITING_SUPPLIER_DELIVERY}>Aguardando Entrega</option>
+              <option value={BoxStatus.SUPPLIER_DELIVERY_RECEIVED}>Recebido no Armazém</option>
+              <option value={BoxStatus.DISPATCHING}>Despachando</option>
+              <option value={BoxStatus.COMPLETED}>Finalizada</option>
+              <option value={BoxStatus.CANCELLED}>Cancelada</option>
             </select>
           </div>
 

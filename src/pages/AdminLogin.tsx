@@ -13,10 +13,11 @@ export default function AdminLogin() {
 
   // If user is already logged in as manager, redirect to admin
   React.useEffect(() => {
-    if (user) {
+    const adminProfile = localStorage.getItem('adminProfile')
+    if (adminProfile) {
       navigate('/admin')
     }
-  }, [user, navigate])
+  }, [navigate])
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
@@ -41,9 +42,8 @@ export default function AdminLogin() {
         // Save to localStorage for persistence
         localStorage.setItem('adminProfile', JSON.stringify(adminProfile))
 
-        // Set admin role in context (this will be handled by AuthContext)
-        // For now, we'll redirect and let the admin page handle the role check
-        navigate('/admin')
+        // Force page reload to ensure AuthContext picks up the admin session
+        window.location.href = '/admin'
       } else {
         setError('Credenciais inválidas')
       }

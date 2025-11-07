@@ -1,5 +1,5 @@
 import React from 'react'
-import { Navigate } from 'react-router-dom'
+import { Navigate, useLocation } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext'
 
 interface AdminRouteProps {
@@ -8,6 +8,7 @@ interface AdminRouteProps {
 
 export default function AdminRoute({ children }: AdminRouteProps) {
   const { user, profile, loading, isAdmin } = useAuth()
+  const location = useLocation()
 
   if (loading) {
     return (
@@ -20,7 +21,8 @@ export default function AdminRoute({ children }: AdminRouteProps) {
     )
   }
 
-  if (!isAdmin) {
+  // Se não é admin, redirecionar para login admin apenas se não estiver já na página de login
+  if (!isAdmin && location.pathname !== '/admin-login') {
     return <Navigate to="/admin-login" replace />
   }
 

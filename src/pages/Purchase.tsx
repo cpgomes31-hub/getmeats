@@ -5,7 +5,7 @@ import { getFirestore } from 'firebase/firestore'
 import { app } from '../firebase/config'
 import { createPurchase, updatePurchase, updateBox } from '../firebase/boxes'
 import { useAuth } from '../context/AuthContext'
-import { MeatBox } from '../types'
+import { MeatBox, OrderStatus } from '../types'
 import { createPixPayment } from '../mercadopago/pix'
 import { sendEmail } from '../services/email'
 
@@ -20,10 +20,14 @@ export default function Purchase() {
 
   useEffect(() => {
     if (!user) {
+      // Salvar a página atual para redirecionar após login
+      localStorage.setItem('redirectAfterLogin', `/purchase/${boxId}`)
       navigate('/login')
       return
     }
     if (!profile?.profileCompleted) {
+      // Salvar a página atual para redirecionar após completar perfil
+      localStorage.setItem('redirectAfterProfile', `/purchase/${boxId}`)
       navigate('/complete-profile')
       return
     }
@@ -81,7 +85,7 @@ export default function Purchase() {
         userId: user.uid,
         kgPurchased: kg,
         totalAmount,
-        status: 'awaiting_box_closure',
+        status: OrderStatus.WAITING_BOX_CLOSURE,
         paymentStatus: box.paymentType === 'prepaid' ? 'pending' : 'paid',
       })
 
@@ -125,7 +129,7 @@ export default function Purchase() {
         alert('Compra sinalizada com sucesso!')
       }
 
-      navigate('/')
+      navigate('/my-orders')
     } catch (error) {
       console.error('Error creating purchase:', error)
       alert('Erro ao sinalizar compra')
@@ -157,7 +161,7 @@ export default function Purchase() {
       <div className="bg-gray-900 p-6 rounded-lg mb-6">
         <h2 className="text-xl font-semibold mb-2">{box.name}</h2>
         <p className="text-gray-400 mb-2">Marca: {box.brand}</p>
-        <p className="text-lg font-bold text-brand mb-2">R$ {box.pricePerKg.toFixed(2)}/kg</p>
+        <p className="text-lg font-bold text-brand mb-2">R$ {box.pricePerKg?.toFixed(2) || '0.00'}/kg</p>
         <p className="text-sm text-gray-400">Disponível: {box.remainingKg}kg</p>
         <p className="text-sm text-gray-400">
           Mínimo por pessoa: {box.minKgPerPerson > 0 ? `${box.minKgPerPerson}kg` : 'Sem mínimo'}

@@ -1,6 +1,7 @@
 import React, { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { createBox } from '../firebase/boxes'
+import { BoxStatus } from '../types'
 
 interface BoxFormData {
   name: string
@@ -11,7 +12,7 @@ interface BoxFormData {
   totalKg: number
   remainingKg: number
   minKgPerPerson: number
-  status: 'awaiting_customer_purchases' | 'awaiting_supplier_purchase' | 'awaiting_supplier_delivery' | 'received_at_warehouse' | 'dispatching_to_customers' | 'completed' | 'cancelled'
+  status: BoxStatus
   paymentType: 'prepaid' | 'postpaid'
 }
 
@@ -27,7 +28,7 @@ export default function AdminNewBox() {
     totalKg: 0,
     remainingKg: 0,
     minKgPerPerson: 1,
-    status: 'awaiting_customer_purchases',
+    status: BoxStatus.WAITING_PURCHASES,
     paymentType: 'prepaid'
   })
 

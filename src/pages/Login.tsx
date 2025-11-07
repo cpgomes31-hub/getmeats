@@ -1,4 +1,4 @@
-import React, { useState } from 'react'
+import React, { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { signInWithGoogle, signInWithEmail, registerWithEmail } from '../firebase/auth'
 import { useAuth } from '../context/AuthContext'
@@ -9,13 +9,48 @@ export default function Login() {
   const [message, setMessage] = useState<string | null>(null)
 
   const navigate = useNavigate()
-  const { user, profile } = useAuth()
+  const { user, profile, isAdmin } = useAuth()
+
+  // Limpar campos quando o componente montar (evitar dados pré-preenchidos do admin)
+  useEffect(() => {
+    setEmail('')
+    setPassword('')
+    setMessage(null)
+  }, [])
+
+  // Redirecionar automaticamente após login bem-sucedido
+  useEffect(() => {
+    // Aguardar tanto user quanto profile serem definidos (não null/undefined)
+    if (user && !isAdmin && profile !== undefined) {
+      if (profile === null) {
+        // Profile não existe no banco, redirecionar para completar
+        navigate('/complete-profile')
+      } else if (profile.profileCompleted === false) {
+        // Profile existe mas não está completo
+        navigate('/complete-profile')
+      } else if (profile.profileCompleted === true) {
+        // Profile completo, redirecionar para home ou página armazenada
+        const redirectPath = localStorage.getItem('redirectAfterLogin')
+        if (redirectPath) {
+          localStorage.removeItem('redirectAfterLogin')
+          navigate(redirectPath)
+        } else {
+          navigate('/')
+        }
+      } else {
+        // profileCompleted não definido, assumir que precisa completar
+        navigate('/complete-profile')
+      }
+    }
+  }, [user, profile, isAdmin, navigate])
 
   const signInWithGoogleHandler = async () => {
     try {
+      // Garantir que não haja sessão admin em localStorage antes do login cliente
+      localStorage.removeItem('adminProfile')
       await signInWithGoogle()
       setMessage('Login com Google realizado com sucesso')
-      // navigation will be handled by auth change effect
+      // O redirecionamento será feito pelo useEffect acima
     } catch (err: any) {
       setMessage(err.message || 'Erro no login com Google')
     }
@@ -24,8 +59,11 @@ export default function Login() {
   const signInEmail = async (e: React.FormEvent) => {
     e.preventDefault()
     try {
+      // Garantir que não haja sessão admin em localStorage antes do login cliente
+      localStorage.removeItem('adminProfile')
       await signInWithEmail(email, password)
       setMessage('Login realizado com sucesso')
+      // O redirecionamento será feito pelo useEffect acima
     } catch (err: any) {
       setMessage(err.message || 'Erro no login por email')
     }
@@ -33,6 +71,8 @@ export default function Login() {
 
   const register = async () => {
     try {
+      // Garantir que não haja sessão admin em localStorage antes do registro/ login cliente
+      localStorage.removeItem('adminProfile')
       await registerWithEmail(email, password)
       setMessage('Conta criada com sucesso. Complete o cadastro após o login.')
     } catch (err: any) {

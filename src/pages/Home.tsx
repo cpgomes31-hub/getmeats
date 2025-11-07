@@ -67,8 +67,8 @@ export default function Home() {
               </div>
 
               <h2 className="text-xl font-semibold mb-2">{box.name}</h2>
-              <p className="text-sm text-gray-400 mb-2">Marca: {box.brand}</p>
-              <p className="text-lg font-bold text-brand mb-2">R$ {box.pricePerKg.toFixed(2)}/kg</p>
+              <p className="text-sm text-gray-300 mb-2">Marca: {box.brand}</p>
+              <p className="text-lg font-bold text-brand mb-2">R$ {box.pricePerKg?.toFixed(2) || '0.00'}/kg</p>
 
               <div className="mb-4">
                 <div className="flex justify-between text-sm mb-1">
@@ -81,12 +81,12 @@ export default function Home() {
                     style={{ width: `${box.totalKg > 0 ? ((box.totalKg - box.remainingKg) / box.totalKg) * 100 : 0}%` }}
                   />
                 </div>
-                <p className="text-sm text-gray-400 mt-1">
+                <p className="text-sm text-gray-300 mt-1">
                   {box.totalKg > 0 ? Math.round(((box.totalKg - box.remainingKg) / box.totalKg) * 100) : 0}% adquirido
                 </p>
               </div>
 
-              <div className="text-sm text-gray-400 mb-4">
+              <div className="text-sm text-gray-300 mb-4">
                 Mínimo por pessoa: {box.minKgPerPerson > 0 ? `${box.minKgPerPerson}kg` : 'Sem mínimo'}
               </div>
 

@@ -20,7 +20,16 @@ export default function CompleteProfile() {
 
   useEffect(() => {
     if (!user) return
-    if (profile && profile.profileCompleted) navigate('/')
+    if (profile && profile.profileCompleted) {
+      // Verificar se há uma página para redirecionar após completar perfil
+      const redirectPath = localStorage.getItem('redirectAfterProfile')
+      if (redirectPath) {
+        localStorage.removeItem('redirectAfterProfile')
+        navigate(redirectPath)
+      } else {
+        navigate('/')
+      }
+    }
   }, [user, profile])
 
   async function lookupCep() {

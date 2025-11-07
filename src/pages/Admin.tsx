@@ -1,9 +1,11 @@
 import React, { useState, useEffect } from 'react'
 import { Link } from 'react-router-dom'
 import { getAllBoxes, getPurchasesForBox, deleteBox, restoreBox, updateBoxStatus, permanentlyDeleteBox } from '../firebase/boxes'
-import { MeatBox } from '../types'
+import { MeatBox, BoxStatus } from '../types'
+import { mapLegacyBoxStatus } from '../types/status'
 import { useAuth } from '../context/AuthContext'
 import { saveUserProfile } from '../firebase/auth'
+import StatusFlow from '../components/StatusFlow'
 
 export default function AdminPage() {
   const { user, profile } = useAuth()
@@ -11,9 +13,6 @@ export default function AdminPage() {
   const [deletedBoxes, setDeletedBoxes] = useState<MeatBox[]>([])
   const [loading, setLoading] = useState(true)
   const [filter, setFilter] = useState<'all' | 'active' | 'completed' | 'deleted'>('all')
-
-  // Debug
-  console.log('Admin Debug:', { user: user?.email, profile, role: profile?.role })
 
   useEffect(() => {
     loadBoxes()
@@ -49,7 +48,7 @@ export default function AdminPage() {
     }
   }
 
-  const handleStatusChange = async (boxId: string, newStatus: string) => {
+  const handleStatusChange = async (boxId: string, newStatus: BoxStatus) => {
     try {
       await updateBoxStatus(boxId, newStatus)
       await loadBoxes() // Recarregar lista
@@ -136,9 +135,9 @@ export default function AdminPage() {
   const filteredBoxes = (() => {
     switch (filter) {
       case 'active':
-        return boxes.filter(b => b.status === 'awaiting_customer_purchases')
+        return boxes.filter(b => mapLegacyBoxStatus(b.status) === BoxStatus.WAITING_PURCHASES)
       case 'completed':
-        return boxes.filter(b => b.status === 'completed')
+        return boxes.filter(b => mapLegacyBoxStatus(b.status) === BoxStatus.COMPLETED)
       case 'deleted':
         return deletedBoxes
       default:
@@ -148,22 +147,30 @@ export default function AdminPage() {
 
   const getStatusColor = (status: string, isDeleted: boolean = false) => {
     if (isDeleted) return 'bg-gray-100 text-gray-600'
-    switch (status) {
-      case 'awaiting_customer_purchases': return 'bg-green-100 text-green-800'
-      case 'awaiting_supplier_purchase':
-      case 'collecting_payments': return 'bg-yellow-100 text-yellow-800'
-      case 'completed': return 'bg-gray-100 text-gray-800'
+    const mappedStatus = mapLegacyBoxStatus(status)
+    switch (mappedStatus) {
+      case BoxStatus.WAITING_PURCHASES: return 'bg-green-100 text-green-800'
+      case BoxStatus.WAITING_SUPPLIER_ORDER:
+      case BoxStatus.WAITING_SUPPLIER_DELIVERY: return 'bg-yellow-100 text-yellow-800'
+      case BoxStatus.SUPPLIER_DELIVERY_RECEIVED:
+      case BoxStatus.DISPATCHING: return 'bg-blue-100 text-blue-800'
+      case BoxStatus.COMPLETED: return 'bg-gray-100 text-gray-800'
+      case BoxStatus.CANCELLED: return 'bg-red-100 text-red-800'
       default: return 'bg-gray-100 text-gray-800'
     }
   }
 
   const getStatusText = (status: string, isDeleted: boolean = false) => {
     if (isDeleted) return 'Excluída'
-    switch (status) {
-      case 'awaiting_customer_purchases': return 'Ativa'
-      case 'awaiting_supplier_purchase':
-      case 'collecting_payments': return 'Coletando Pagamentos'
-      case 'completed': return 'Finalizada'
+    const mappedStatus = mapLegacyBoxStatus(status)
+    switch (mappedStatus) {
+      case BoxStatus.WAITING_PURCHASES: return 'Aguardando compras'
+      case BoxStatus.WAITING_SUPPLIER_ORDER: return 'Aguardando pedido ao fornecedor'
+      case BoxStatus.WAITING_SUPPLIER_DELIVERY: return 'Aguardando entrega fornecedor'
+      case BoxStatus.SUPPLIER_DELIVERY_RECEIVED: return 'Entrega do fornecedor recebida'
+      case BoxStatus.DISPATCHING: return 'Despachando'
+      case BoxStatus.COMPLETED: return 'Finalizada'
+      case BoxStatus.CANCELLED: return 'Cancelada'
       default: return status
     }
   }
@@ -253,7 +260,7 @@ export default function AdminPage() {
                 filter === 'active' ? 'bg-red-600 text-white' : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
               }`}
             >
-              Aguardando ({boxes.filter(b => b.status === 'awaiting_customer_purchases').length})
+              Aguardando ({boxes.filter(b => mapLegacyBoxStatus(b.status) === BoxStatus.WAITING_PURCHASES).length})
             </button>
             <button
               onClick={() => setFilter('completed')}
@@ -261,7 +268,7 @@ export default function AdminPage() {
                 filter === 'completed' ? 'bg-red-600 text-white' : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
               }`}
             >
-              Finalizadas ({boxes.filter(b => b.status === 'completed').length})
+              Finalizadas ({boxes.filter(b => mapLegacyBoxStatus(b.status) === BoxStatus.COMPLETED).length})
             </button>
             <button
               onClick={() => setFilter('deleted')}
@@ -316,6 +323,9 @@ export default function AdminPage() {
                   </div>
                 </div>
 
+                {/* Fluxo de Status */}
+                <StatusFlow currentStatus={mapLegacyBoxStatus(box.status)} type="box" />
+
                 {/* Barra de progresso */}
                 {!isDeleted && (
                   <div className="mb-4">
@@ -354,17 +364,41 @@ export default function AdminPage() {
                       >
                         🗑️ Excluir
                       </button>
-                      {box.status === 'awaiting_customer_purchases' && (
+                      {mapLegacyBoxStatus(box.status) === BoxStatus.WAITING_PURCHASES && (
                         <button
-                          onClick={() => handleStatusChange(box.id, 'awaiting_supplier_purchase')}
+                          onClick={() => handleStatusChange(box.id, BoxStatus.WAITING_SUPPLIER_ORDER)}
                           className="bg-yellow-600 hover:bg-yellow-700 text-white px-4 py-2 rounded-lg text-sm font-medium"
                         >
-                          Iniciar Cobrança
+                          Iniciar Pedido ao Fornecedor
                         </button>
                       )}
-                      {box.status === 'awaiting_supplier_purchase' && (
+                      {mapLegacyBoxStatus(box.status) === BoxStatus.WAITING_SUPPLIER_ORDER && (
                         <button
-                          onClick={() => handleStatusChange(box.id, 'completed')}
+                          onClick={() => handleStatusChange(box.id, BoxStatus.WAITING_SUPPLIER_DELIVERY)}
+                          className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg text-sm font-medium"
+                        >
+                          Pedido Realizado
+                        </button>
+                      )}
+                      {mapLegacyBoxStatus(box.status) === BoxStatus.WAITING_SUPPLIER_DELIVERY && (
+                        <button
+                          onClick={() => handleStatusChange(box.id, BoxStatus.SUPPLIER_DELIVERY_RECEIVED)}
+                          className="bg-purple-600 hover:bg-purple-700 text-white px-4 py-2 rounded-lg text-sm font-medium"
+                        >
+                          Mercadoria Recebida
+                        </button>
+                      )}
+                      {mapLegacyBoxStatus(box.status) === BoxStatus.SUPPLIER_DELIVERY_RECEIVED && (
+                        <button
+                          onClick={() => handleStatusChange(box.id, BoxStatus.DISPATCHING)}
+                          className="bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2 rounded-lg text-sm font-medium"
+                        >
+                          Iniciar Despacho
+                        </button>
+                      )}
+                      {mapLegacyBoxStatus(box.status) === BoxStatus.DISPATCHING && (
+                        <button
+                          onClick={() => handleStatusChange(box.id, BoxStatus.COMPLETED)}
                           className="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-lg text-sm font-medium"
                         >
                           Finalizar Caixa

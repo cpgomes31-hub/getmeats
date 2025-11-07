@@ -41,12 +41,14 @@ async function ensureUserDoc(user: User) {
   const ref = doc(db, 'users', user.uid)
   const snap = await getDoc(ref)
   if (!snap.exists()) {
-    await setDoc(ref, {
+    const userData = {
       uid: user.uid,
       email: user.email || null,
+      name: user.displayName || null,
       createdAt: new Date().toISOString(),
       profileCompleted: false,
-    })
+    }
+    await setDoc(ref, userData)
   }
 }
 

@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react'
 import { useParams, useNavigate, Link } from 'react-router-dom'
 import { getAllBoxes, getPurchasesForBox, updateBoxStatus } from '../firebase/boxes'
 import { getUserProfile } from '../firebase/auth'
-import { MeatBox, Purchase, UserProfile } from '../types'
+import { MeatBox, Purchase, UserProfile, BoxStatus } from '../types'
 
 export default function AdminBoxDetails() {
   const { boxId } = useParams<{ boxId: string }>()
@@ -175,25 +175,25 @@ export default function AdminBoxDetails() {
               </span>
             </div>
             <div className="flex gap-2">
-              {box.status === 'awaiting_customer_purchases' && (
+              {box.status === BoxStatus.WAITING_PURCHASES && (
                 <button
-                  onClick={() => handleStatusChange('awaiting_supplier_purchase')}
+                  onClick={() => handleStatusChange(BoxStatus.WAITING_SUPPLIER_ORDER)}
                   className="bg-yellow-600 hover:bg-yellow-700 text-white px-4 py-2 rounded-lg text-sm font-medium"
                 >
                   Iniciar Cobrança
                 </button>
               )}
-              {box.status === 'awaiting_supplier_purchase' && (
+              {box.status === BoxStatus.WAITING_SUPPLIER_ORDER && (
                 <button
-                  onClick={() => handleStatusChange('completed')}
+                  onClick={() => handleStatusChange(BoxStatus.COMPLETED)}
                   className="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-lg text-sm font-medium"
                 >
                   Finalizar Caixa
                 </button>
               )}
-              {isFullyReserved && box.status === 'awaiting_customer_purchases' && (
+              {isFullyReserved && box.status === BoxStatus.WAITING_PURCHASES && (
                 <button
-                  onClick={() => handleStatusChange('awaiting_supplier_purchase')}
+                  onClick={() => handleStatusChange(BoxStatus.WAITING_SUPPLIER_ORDER)}
                   className="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-lg text-sm font-medium animate-pulse"
                 >
                   🏆 Finalizar (100% Reservada!)

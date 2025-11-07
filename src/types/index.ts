@@ -1,4 +1,5 @@
 // Types for the GET Meats app
+import { BoxStatus, OrderStatus } from './status'
 
 export interface MeatBox {
   id: string; // Unique ID
@@ -17,15 +18,6 @@ export interface MeatBox {
   deletedAt?: string; // ISO date string when deleted (soft delete)
 }
 
-export type BoxStatus =
-  | 'awaiting_customer_purchases' // Initial status
-  | 'awaiting_supplier_purchase'
-  | 'awaiting_supplier_delivery'
-  | 'received_at_warehouse'
-  | 'dispatching_to_customers'
-  | 'completed'
-  | 'cancelled';
-
 export interface Purchase {
   id: string; // Unique ID
   orderNumber: string; // Internal order number for easy identification
@@ -33,7 +25,7 @@ export interface Purchase {
   userId: string; // Reference to the customer
   kgPurchased: number; // Kg purchased by the customer
   totalAmount: number; // Total amount paid (kg * pricePerKg)
-  status: PurchaseStatus; // Status of the purchase
+  status: OrderStatus; // Status of the purchase
   paymentStatus: 'pending' | 'paid' | 'refunded'; // Payment status
   paymentLink?: string; // Pix payment link (for prepaid purchases)
   paymentExpiresAt?: string; // When the payment expires (ISO date string)
@@ -42,14 +34,6 @@ export interface Purchase {
   createdAt: string; // ISO date string
   updatedAt: string; // ISO date string
 }
-
-export type PurchaseStatus =
-  | 'awaiting_box_closure'
-  | 'awaiting_payment'
-  | 'awaiting_supplier'
-  | 'dispatching'
-  | 'delivered'
-  | 'cancelled';
 
 export interface UserProfile {
   uid: string;
@@ -68,3 +52,7 @@ export interface UserProfile {
   createdAt: string;
   updatedAt: string;
 }
+
+// Re-export status enums for convenience
+export { BoxStatus, OrderStatus } from './status'
+export { mapLegacyBoxStatus, mapLegacyOrderStatus } from './status'

@@ -5,12 +5,14 @@ import { getFirestore } from 'firebase/firestore'
 import { app } from '../firebase/config'
 import { getPurchasesForUser } from '../firebase/boxes'
 import { useAuth } from '../context/AuthContext'
-import { Purchase, MeatBox } from '../types'
+import { Purchase, MeatBox, OrderStatus, mapLegacyOrderStatus } from '../types'
+import StatusFlow from '../components/StatusFlow'
 
 export default function MyOrders() {
   const [purchases, setPurchases] = useState<Purchase[]>([])
   const [boxes, setBoxes] = useState<Map<string, MeatBox>>(new Map())
   const [loading, setLoading] = useState(true)
+  const [statusFilter, setStatusFilter] = useState<OrderStatus | 'all'>('all')
   const { user } = useAuth()
   const navigate = useNavigate()
 
@@ -52,36 +54,40 @@ export default function MyOrders() {
     }
   }
 
-  function getStatusColor(status: string) {
+  function getStatusColor(status: OrderStatus) {
     switch (status) {
-      case 'awaiting_box_closure': return 'text-yellow-400'
-      case 'awaiting_payment': return 'text-orange-400'
-      case 'awaiting_supplier': return 'text-blue-400'
-      case 'dispatching': return 'text-purple-400'
-      case 'delivered': return 'text-green-400'
-      case 'cancelled': return 'text-red-400'
-      default: return 'text-gray-400'
+      case OrderStatus.WAITING_PAYMENT: return 'bg-orange-100 text-orange-800'
+      case OrderStatus.WAITING_BOX_CLOSURE: return 'bg-yellow-100 text-yellow-800'
+      case OrderStatus.IN_PURCHASE_PROCESS: return 'bg-blue-100 text-blue-800'
+      case OrderStatus.WAITING_SUPPLIER: return 'bg-purple-100 text-purple-800'
+      case OrderStatus.WAITING_CLIENT_SHIPMENT: return 'bg-indigo-100 text-indigo-800'
+      case OrderStatus.DISPATCHING_TO_CLIENT: return 'bg-cyan-100 text-cyan-800'
+      case OrderStatus.DELIVERED_TO_CLIENT: return 'bg-green-100 text-green-800'
+      case OrderStatus.CANCELLED: return 'bg-red-100 text-red-800'
+      default: return 'bg-gray-100 text-gray-800'
     }
   }
 
-  function getStatusText(status: string) {
+  function getStatusText(status: OrderStatus) {
     switch (status) {
-      case 'awaiting_box_closure': return 'Aguardando fechamento da caixa'
-      case 'awaiting_payment': return 'Aguardando pagamento'
-      case 'awaiting_supplier': return 'Aguardando fornecedor'
-      case 'dispatching': return 'Em despacho'
-      case 'delivered': return 'Entregue'
-      case 'cancelled': return 'Cancelado'
+      case OrderStatus.WAITING_PAYMENT: return 'Aguardando pagamento cliente'
+      case OrderStatus.WAITING_BOX_CLOSURE: return 'Aguardando fechamento da caixa'
+      case OrderStatus.IN_PURCHASE_PROCESS: return 'Em processo de compra'
+      case OrderStatus.WAITING_SUPPLIER: return 'Aguardando fornecedor - frigorífico'
+      case OrderStatus.WAITING_CLIENT_SHIPMENT: return 'Aguardando envio para o cliente'
+      case OrderStatus.DISPATCHING_TO_CLIENT: return 'Despachando para o cliente'
+      case OrderStatus.DELIVERED_TO_CLIENT: return 'Entregue ao cliente'
+      case OrderStatus.CANCELLED: return 'Cancelado'
       default: return status
     }
   }
 
   function getPaymentStatusColor(status: string) {
     switch (status) {
-      case 'pending': return 'text-orange-400'
-      case 'paid': return 'text-green-400'
-      case 'refunded': return 'text-blue-400'
-      default: return 'text-gray-400'
+      case 'pending': return 'bg-yellow-100 text-yellow-800'
+      case 'paid': return 'bg-green-100 text-green-800'
+      case 'refunded': return 'bg-blue-100 text-blue-800'
+      default: return 'bg-gray-100 text-gray-800'
     }
   }
 
@@ -112,11 +118,47 @@ export default function MyOrders() {
     )
   }
 
+  // Filtrar apenas pedidos que têm dados válidos e cuja caixa ainda existe
+  const visiblePurchases = purchases.filter(p => p && p.boxId && p.kgPurchased && p.totalAmount && boxes.has(p.boxId))
+
+  const filteredPurchases = visiblePurchases.filter(purchase => {
+    if (statusFilter === 'all') return true
+    return mapLegacyOrderStatus(purchase.status) === statusFilter
+  })
+
   return (
     <div className="max-w-6xl mx-auto">
       <h1 className="text-3xl font-bold mb-8">Meus Pedidos</h1>
 
-      {purchases.length === 0 ? (
+      {/* Filtros por Status */}
+      <div className="mb-6">
+        <div className="flex flex-wrap gap-2">
+          <button
+            onClick={() => setStatusFilter('all')}
+            className={`px-4 py-2 rounded-lg font-medium text-sm ${
+              statusFilter === 'all' ? 'bg-brand text-white' : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
+            }`}
+          >
+            Todos ({visiblePurchases.length})
+          </button>
+          {Object.values(OrderStatus).map((status) => {
+            const count = visiblePurchases.filter(p => mapLegacyOrderStatus(p.status) === status).length
+            return (
+              <button
+                key={status}
+                onClick={() => setStatusFilter(status)}
+                className={`px-4 py-2 rounded-lg font-medium text-sm ${
+                  statusFilter === status ? 'bg-brand text-white' : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
+                }`}
+              >
+                {getStatusText(status)} ({count})
+              </button>
+            )
+          })}
+        </div>
+      </div>
+
+      {filteredPurchases.length === 0 ? (
         <div className="text-center py-12">
           <div className="text-gray-400 mb-4">
             <svg className="w-16 h-16 mx-auto mb-4 opacity-50" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -134,7 +176,9 @@ export default function MyOrders() {
         </div>
       ) : (
         <div className="space-y-6">
-          {purchases.map((purchase) => {
+          {filteredPurchases
+            .filter(purchase => purchase && purchase.boxId && purchase.kgPurchased && purchase.totalAmount) // Filtrar pedidos com dados válidos
+            .map((purchase) => {
             const box = boxes.get(purchase.boxId)
             if (!box) return null
 
@@ -145,8 +189,8 @@ export default function MyOrders() {
                   <div className="flex-1">
                     <div className="flex items-center gap-4 mb-4">
                       <h3 className="text-xl font-semibold">Pedido #{purchase.orderNumber}</h3>
-                      <span className={`px-3 py-1 rounded-full text-sm font-medium ${getStatusColor(purchase.status)} bg-gray-800`}>
-                        {getStatusText(purchase.status)}
+                      <span className={`px-3 py-1 rounded-full text-sm font-medium ${getStatusColor(mapLegacyOrderStatus(purchase.status))}`}>
+                        {getStatusText(mapLegacyOrderStatus(purchase.status))}
                       </span>
                     </div>
 
@@ -160,21 +204,24 @@ export default function MyOrders() {
                       <div>
                         <p className="text-gray-400 text-sm">Quantidade</p>
                         <p className="font-medium">{purchase.kgPurchased}kg</p>
-                        <p className="text-gray-400 text-sm">R$ {box.pricePerKg.toFixed(2)}/kg</p>
+                        <p className="text-gray-400 text-sm">R$ {box.pricePerKg?.toFixed(2) || '0.00'}/kg</p>
                       </div>
 
                       <div>
                         <p className="text-gray-400 text-sm">Valor Total</p>
-                        <p className="font-medium text-lg text-brand">R$ {purchase.totalAmount.toFixed(2)}</p>
+                        <p className="font-medium text-lg text-brand">R$ {purchase.totalAmount?.toFixed(2) || '0.00'}</p>
                       </div>
 
                       <div>
                         <p className="text-gray-400 text-sm">Status do Pagamento</p>
-                        <p className={`font-medium ${getPaymentStatusColor(purchase.paymentStatus)}`}>
+                        <p className={`font-medium inline-block ${getPaymentStatusColor(purchase.paymentStatus)} px-2 py-1 rounded`}>
                           {getPaymentStatusText(purchase.paymentStatus)}
                         </p>
                       </div>
                     </div>
+
+                    {/* Fluxo de Status */}
+                    <StatusFlow currentStatus={mapLegacyOrderStatus(purchase.status)} type="order" />
 
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                       <div>
