@@ -47,7 +47,8 @@ export default function App() {
               <button
                 onClick={async () => {
                   await logout()
-                  navigate('/')
+                  // Pequeno delay para garantir que o logout seja processado
+                  setTimeout(() => navigate('/'), 100)
                 }}
                 className="text-gray-300 hover:text-white"
               >

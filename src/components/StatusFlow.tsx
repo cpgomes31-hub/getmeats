@@ -13,7 +13,7 @@ export default function StatusFlow({ currentStatus, type }: StatusFlowProps) {
     { status: BoxStatus.WAITING_SUPPLIER_DELIVERY, label: 'Aguardando entrega fornecedor', color: 'bg-orange-500' },
     { status: BoxStatus.SUPPLIER_DELIVERY_RECEIVED, label: 'Entrega do fornecedor recebida', color: 'bg-blue-500' },
     { status: BoxStatus.DISPATCHING, label: 'Despachando', color: 'bg-purple-500' },
-    { status: BoxStatus.COMPLETED, label: 'Finalizada', color: 'bg-gray-500' },
+    { status: BoxStatus.COMPLETED, label: 'Finalizada', color: 'bg-green-500' },
     { status: BoxStatus.CANCELLED, label: 'Cancelada', color: 'bg-red-600' }
   ]
 
@@ -32,14 +32,10 @@ export default function StatusFlow({ currentStatus, type }: StatusFlowProps) {
   const currentIndex = statuses.findIndex(s => s.status === currentStatus)
 
   return (
-    <div className="mb-6">
-      <h4 className="text-sm font-medium text-gray-700 mb-3">
-        Fluxo de Status - {type === 'box' ? 'Caixa' : 'Pedido'}
-      </h4>
-
+    <div className="mb-4">
       <div className="flex items-center justify-between relative">
         {/* Linha de conexão */}
-        <div className="absolute top-4 left-0 right-0 h-0.5 bg-gray-300 -z-10"></div>
+        <div className="absolute top-3 left-0 right-0 h-0.5 bg-gray-300 -z-10"></div>
 
         {statuses.map((statusItem, index) => {
           const isCompleted = index < currentIndex
@@ -50,7 +46,7 @@ export default function StatusFlow({ currentStatus, type }: StatusFlowProps) {
             <div key={statusItem.status} className="flex flex-col items-center flex-1">
               {/* Círculo do status */}
               <div
-                className={`w-8 h-8 rounded-full flex items-center justify-center text-white text-xs font-bold mb-2 ${
+                className={`w-6 h-6 rounded-full flex items-center justify-center text-white text-xs font-bold mb-1 ${
                   isCompleted
                     ? 'bg-green-500'
                     : isCurrent
@@ -75,23 +71,11 @@ export default function StatusFlow({ currentStatus, type }: StatusFlowProps) {
                   {statusItem.label}
                 </p>
 
-                {/* Indicador de status atual */}
-                {isCurrent && (
-                  <div className="mt-1">
-                    <span className="inline-block w-2 h-2 bg-blue-500 rounded-full animate-pulse"></span>
-                  </div>
-                )}
+                {/* Indicador de status atual removido - agora está no topo */}
               </div>
             </div>
           )
         })}
-      </div>
-
-      {/* Status atual destacado */}
-      <div className="mt-4 text-center">
-        <span className="inline-flex items-center px-3 py-1 rounded-full text-sm font-medium bg-blue-100 text-blue-800">
-          Status Atual: {statuses.find(s => s.status === currentStatus)?.label || currentStatus}
-        </span>
       </div>
     </div>
   )

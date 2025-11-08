@@ -1,11 +1,12 @@
 import React, { useState, useEffect } from 'react'
 import { useParams, useNavigate, Link } from 'react-router-dom'
 import { getAllBoxes, getPurchasesForBox, changeBoxStatus, changePurchaseStatus } from '../firebase/boxes'
-import { OrderStatus } from '../types'
+import { OrderStatus, BoxStatus } from '../types'
 import { getValidNextStatuses, isValidStatusTransition } from '../types/status'
 import StatusChangeModal from '../components/StatusChangeModal'
+import StatusFlow from '../components/StatusFlow'
 import { getUserProfile } from '../firebase/auth'
-import { MeatBox, Purchase, UserProfile, BoxStatus } from '../types'
+import { MeatBox, Purchase, UserProfile } from '../types'
 import { useAuth } from '../context/AuthContext'
 
 export default function AdminBoxDetails() {
@@ -109,22 +110,28 @@ export default function AdminBoxDetails() {
     }
   }
 
-  const getStatusColor = (status: string) => {
+  const getStatusColor = (status: BoxStatus, isDeleted: boolean = false) => {
+    if (isDeleted) return 'bg-gray-100 text-gray-500'
     switch (status) {
-      case 'awaiting_customer_purchases': return 'bg-green-100 text-green-800'
-      case 'awaiting_supplier_purchase':
-      case 'collecting_payments': return 'bg-yellow-100 text-yellow-800'
-      case 'completed': return 'bg-gray-100 text-gray-800'
+      case BoxStatus.WAITING_PURCHASES: return 'bg-green-100 text-green-800'
+      case BoxStatus.WAITING_SUPPLIER_ORDER: return 'bg-yellow-100 text-yellow-800'
+      case BoxStatus.WAITING_SUPPLIER_DELIVERY: return 'bg-blue-100 text-blue-800'
+      case BoxStatus.SUPPLIER_DELIVERY_RECEIVED: return 'bg-purple-100 text-purple-800'
+      case BoxStatus.DISPATCHING: return 'bg-orange-100 text-orange-800'
+      case BoxStatus.COMPLETED: return 'bg-gray-100 text-gray-800'
       default: return 'bg-gray-100 text-gray-800'
     }
   }
 
-  const getStatusText = (status: string) => {
+  const getStatusText = (status: BoxStatus, isDeleted: boolean = false) => {
+    if (isDeleted) return 'Excluída'
     switch (status) {
-      case 'awaiting_customer_purchases': return 'Ativa'
-      case 'awaiting_supplier_purchase':
-      case 'collecting_payments': return 'Coletando Pagamentos'
-      case 'completed': return 'Finalizada'
+      case BoxStatus.WAITING_PURCHASES: return 'Aguardando Compras'
+      case BoxStatus.WAITING_SUPPLIER_ORDER: return 'Aguardando Pedido'
+      case BoxStatus.WAITING_SUPPLIER_DELIVERY: return 'Aguardando Entrega'
+      case BoxStatus.SUPPLIER_DELIVERY_RECEIVED: return 'Mercadoria Recebida'
+      case BoxStatus.DISPATCHING: return 'Despachando'
+      case BoxStatus.COMPLETED: return 'Finalizada'
       default: return status
     }
   }
@@ -136,6 +143,7 @@ export default function AdminBoxDetails() {
       case 'awaiting_supplier': return 'bg-purple-100 text-purple-800'
       case 'dispatching': return 'bg-orange-100 text-orange-800'
       case 'delivered': return 'bg-green-100 text-green-800'
+      case 'delivered_to_client': return 'bg-green-100 text-green-800' // Verde para status final
       case 'cancelled': return 'bg-red-100 text-red-800'
       default: return 'bg-gray-100 text-gray-800'
     }
@@ -208,8 +216,8 @@ export default function AdminBoxDetails() {
         {/* Header */}
         <div className="flex justify-between items-center mb-8">
           <div>
-            <h1 className="text-3xl font-bold text-gray-900">{box.name}</h1>
-            <p className="text-gray-600">{box.brand}</p>
+            <h1 className="text-3xl font-bold text-gray-900">Detalhes da Caixa</h1>
+            <p className="text-gray-600">Visualização completa da caixa selecionada</p>
           </div>
           <div className="flex gap-4">
             <Link
@@ -227,105 +235,109 @@ export default function AdminBoxDetails() {
           </div>
         </div>
 
-        {/* Status e Ações */}
-        <div className="bg-white rounded-lg shadow-md p-6 mb-8">
-          <div className="flex justify-between items-center mb-4">
-            <div className="flex items-center gap-4">
-              <span className={`px-4 py-2 rounded-full text-sm font-medium ${getStatusColor(box.status)}`}>
-                {getStatusText(box.status)}
-              </span>
-              <span className="text-gray-600">
-                Criada em {new Date(box.createdAt).toLocaleDateString('pt-BR')}
-              </span>
-            </div>
-            <div className="flex gap-2">
-              {box.status === BoxStatus.WAITING_SUPPLIER_ORDER && (
-                <button
-                  onClick={() => handleStatusChange(BoxStatus.COMPLETED)}
-                  className="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-lg text-sm font-medium"
-                >
-                  Finalizar Caixa
-                </button>
-              )}
-              {/* Note: "Iniciar Cobrança" and the 100% reserved quick-finalize button were removed
-                  because box transitions to 'Aguardando pedido ao fornecedor' now happen
-                  automatically when the box is fully reserved and all purchases are paid. */}
-            </div>
-          </div>
-        </div>
-
-        {/* Informações da Caixa */}
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-8 mb-8">
-          {/* Detalhes */}
-          <div className="bg-white rounded-lg shadow-md p-6">
-            <h2 className="text-xl font-semibold text-gray-900 mb-4">Detalhes da Caixa</h2>
-            <div className="space-y-3">
-              <div className="flex justify-between">
-                <span className="text-gray-600">Preço de Venda:</span>
-                <span className="font-semibold text-gray-900">R$ {box.pricePerKg.toFixed(2)}/kg</span>
-              </div>
-              <div className="flex justify-between">
-                <span className="text-gray-600">Custo:</span>
-                <span className="font-semibold text-gray-900">R$ {box.costPerKg.toFixed(2)}/kg</span>
-              </div>
-              <div className="flex justify-between">
-                <span className="text-gray-600">Quantidade Total:</span>
-                <span className="font-semibold text-gray-900">{box.totalKg}kg</span>
-              </div>
-              <div className="flex justify-between">
-                <span className="text-gray-600">Restante:</span>
-                <span className="font-semibold text-gray-900">{box.remainingKg}kg</span>
-              </div>
-              <div className="flex justify-between">
-                <span className="text-gray-600">Mínimo por Pessoa:</span>
-                <span className="font-semibold text-gray-900">{box.minKgPerPerson}kg</span>
-              </div>
-              <div className="flex justify-between">
-                <span className="text-gray-600">Tipo de Pagamento:</span>
-                <span className="font-semibold text-gray-900 capitalize">{box.paymentType === 'prepaid' ? 'Pré-pago' : 'Pós-pago'}</span>
-              </div>
-            </div>
-          </div>
-
-          {/* Progresso */}
-          <div className="bg-white rounded-lg shadow-md p-6">
-            <h2 className="text-xl font-semibold text-gray-900 mb-4">Progresso</h2>
-            <div className="space-y-4">
-              <div>
-                <div className="flex justify-between text-sm text-gray-600 mb-1">
-                  <span>Reservado</span>
-                  <span className={isFullyReserved ? 'font-bold text-green-600' : ''}>
-                    {totalKgReserved.toFixed(1)}kg de {box.totalKg}kg
-                    {isFullyReserved && ' 🎉'}
+        {/* Card da Caixa - Mesmo layout da tela Admin */}
+        <div className="bg-white rounded-lg shadow-md p-4 mb-8">
+          <div className="flex justify-between items-start mb-3">
+            <div className="flex-1">
+              <div className="flex items-center gap-6 mb-2">
+                <h3 className="text-lg font-semibold text-gray-900">
+                  {box.name} | {box.brand}
+                </h3>
+                <div className="flex items-center gap-2">
+                  <div className="w-72 bg-gray-200 rounded-full h-4">
+                    <div
+                      className="bg-green-600 h-4 rounded-full transition-all duration-300"
+                      style={{ width: `${box.totalKg > 0 ? ((box.totalKg - box.remainingKg) / box.totalKg) * 100 : 0}%` }}
+                    ></div>
+                  </div>
+                  <span className="text-lg font-bold text-gray-700">
+                    {box.totalKg > 0 ? Math.round(((box.totalKg - box.remainingKg) / box.totalKg) * 100) : 0}%
                   </span>
                 </div>
-                <div className="w-full bg-gray-200 rounded-full h-3">
-                  <div
-                    className={`h-3 rounded-full transition-all duration-300 ${
-                      isFullyReserved ? 'bg-green-600' : 'bg-red-600'
-                    }`}
-                    style={{ width: `${Math.min(progressPercentage, 100)}%` }}
-                  ></div>
-                </div>
-                <p className="text-sm text-gray-600 mt-1">
-                  {isFullyReserved
-                    ? 'Caixa totalmente reservada! Pronto para iniciar cobrança.'
-                    : `${progressPercentage.toFixed(1)}% preenchido`
-                  }
-                </p>
               </div>
-
-              <div className="grid grid-cols-2 gap-4 pt-4 border-t">
-                <div className="text-center">
-                  <p className="text-2xl font-bold text-red-600">{purchases.length}</p>
-                  <p className="text-sm text-gray-600">Interessados</p>
-                </div>
-                <div className="text-center">
-                  <p className="text-2xl font-bold text-green-600">{box.remainingKg.toFixed(1)}kg</p>
-                  <p className="text-sm text-gray-600">Disponível</p>
-                </div>
-              </div>
+              <p className="text-xs text-gray-500 mt-1">
+                Criada em {new Date(box.createdAt).toLocaleDateString('pt-BR')}
+              </p>
             </div>
+            <span className={`px-2 py-1 rounded-full text-xs font-medium ${getStatusColor(box.status)}`}>
+              {getStatusText(box.status)}
+            </span>
+          </div>
+
+          <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-3 mb-3">
+            <div>
+              <p className="text-xs text-gray-700">Preço/kg</p>
+              <p className="font-semibold text-gray-900 text-sm">R$ {box.pricePerKg.toFixed(2)}</p>
+            </div>
+            <div>
+              <p className="text-xs text-gray-700">Total</p>
+              <p className="font-semibold text-gray-900 text-sm">{box.totalKg}kg</p>
+            </div>
+            <div>
+              <p className="text-xs text-gray-700">Restante</p>
+              <p className="font-semibold text-gray-900 text-sm">{box.remainingKg}kg</p>
+            </div>
+            <div>
+              <p className="text-xs text-gray-700">Mínimo/pessoa</p>
+              <p className="font-semibold text-gray-900 text-sm">{box.minKgPerPerson}kg</p>
+            </div>
+            <div>
+              <p className="text-xs text-gray-700">Pagamento</p>
+              <p className="font-semibold text-gray-900 text-sm capitalize">{box.paymentType === 'prepaid' ? 'Pré-pago' : 'Pós-pago'}</p>
+            </div>
+          </div>
+
+          {/* Fluxo de Status */}
+          <StatusFlow currentStatus={box.status} type="box" />
+
+          {/* Ações */}
+          <div className="flex flex-wrap gap-1 mt-3">
+            <Link
+              to={`/admin/box/${box.id}/edit`}
+              className="bg-gray-600 hover:bg-gray-700 text-white px-3 py-1.5 rounded text-xs font-medium"
+            >
+              Editar
+            </Link>
+            {box.status === BoxStatus.WAITING_PURCHASES && (
+              <button
+                onClick={() => handleStatusChange(BoxStatus.WAITING_SUPPLIER_ORDER)}
+                className="bg-yellow-600 hover:bg-yellow-700 text-white px-3 py-1.5 rounded text-xs font-medium"
+              >
+                Iniciar Pedido
+              </button>
+            )}
+            {box.status === BoxStatus.WAITING_SUPPLIER_ORDER && (
+              <button
+                onClick={() => handleStatusChange(BoxStatus.WAITING_SUPPLIER_DELIVERY)}
+                className="bg-blue-600 hover:bg-blue-700 text-white px-3 py-1.5 rounded text-xs font-medium"
+              >
+                Pedido Realizado
+              </button>
+            )}
+            {box.status === BoxStatus.WAITING_SUPPLIER_DELIVERY && (
+              <button
+                onClick={() => handleStatusChange(BoxStatus.SUPPLIER_DELIVERY_RECEIVED)}
+                className="bg-purple-600 hover:bg-purple-700 text-white px-3 py-1.5 rounded text-xs font-medium"
+              >
+                Mercadoria Recebida
+              </button>
+            )}
+            {box.status === BoxStatus.SUPPLIER_DELIVERY_RECEIVED && (
+              <button
+                onClick={() => handleStatusChange(BoxStatus.DISPATCHING)}
+                className="bg-indigo-600 hover:bg-indigo-700 text-white px-3 py-1.5 rounded text-xs font-medium"
+              >
+                Iniciar Despacho
+              </button>
+            )}
+            {box.status === BoxStatus.DISPATCHING && (
+              <button
+                onClick={() => handleStatusChange(BoxStatus.COMPLETED)}
+                className="bg-green-600 hover:bg-green-700 text-white px-3 py-1.5 rounded text-xs font-medium"
+              >
+                Finalizar Caixa
+              </button>
+            )}
           </div>
         </div>
 
@@ -347,18 +359,18 @@ export default function AdminBoxDetails() {
                     <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                       Usuário
                     </th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                        Quantidade
-                      </th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                        Pagamento
-                      </th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                        Valor
-                      </th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                        Status
-                      </th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      Quantidade
+                    </th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      Pagamento
+                    </th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      Valor
+                    </th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      Status
+                    </th>
                     <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                       Data
                     </th>
@@ -390,11 +402,9 @@ export default function AdminBoxDetails() {
                             {getPaymentStatusText(purchase.paymentStatus)}
                           </span>
                         </td>
-
                         <td className="px-6 py-4 whitespace-nowrap">
                           <span className="text-sm font-semibold text-gray-900">{new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(purchase.totalAmount || 0)}</span>
                         </td>
-
                         <td className="px-6 py-4 whitespace-nowrap">
                           <span className={`px-2 py-1 rounded-full text-xs font-medium ${getPurchaseStatusColor(purchase.status)}`}>
                             {getPurchaseStatusText(purchase.status)}
@@ -405,17 +415,8 @@ export default function AdminBoxDetails() {
                         </td>
                         <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
                           <button
-                            onClick={() => {
-                              const userProfile = userProfiles[purchase.userId]
-                              alert(`Detalhes da Compra:\n\nCliente: ${userProfile?.name || 'Não informado'}\nEmail: ${userProfile?.email || 'Não informado'}\nQuantidade: ${purchase.kgPurchased}kg\nStatus: ${getPurchaseStatusText(purchase.status)}\nData: ${new Date(purchase.createdAt).toLocaleDateString('pt-BR')}\nStatus de Pagamento: ${purchase.paymentStatus}`)
-                            }}
-                            className="text-blue-600 hover:text-blue-900"
-                          >
-                            Ver Detalhes
-                          </button>
-                          <button
                             onClick={() => openEditPurchaseStatus(purchase)}
-                            className="ml-3 text-indigo-600 hover:text-indigo-900"
+                            className="text-indigo-600 hover:text-indigo-900"
                           >
                             Editar Status
                           </button>
@@ -428,6 +429,7 @@ export default function AdminBoxDetails() {
             </div>
           )}
         </div>
+
         {/* Status edit modal for purchases */}
         {selectedPurchase && desiredNewStatus && (
           <StatusChangeModal

@@ -297,108 +297,112 @@ export default function AdminPage() {
         </div>
 
         {/* Lista de Caixas */}
-        <div className="grid gap-6">
+        <div className="grid gap-4">
           {filteredBoxes.map((box) => {
             const isDeleted = !!box.deletedAt
             const boxStatus = box.status as BoxStatus
             return (
-              <div key={box.id} className={`bg-white rounded-lg shadow-md p-6 ${isDeleted ? 'opacity-75 border-2 border-gray-300' : ''}`}>
-                <div className="flex justify-between items-start mb-4">
+              <div key={box.id} className={`bg-white rounded-lg shadow-md p-4 ${isDeleted ? 'opacity-75 border-2 border-gray-300' : ''}`}>
+                <div className="flex justify-between items-start mb-3">
                   <div className="flex-1">
-                    <h3 className={`text-xl font-semibold ${isDeleted ? 'text-gray-500 line-through' : 'text-gray-900'}`}>
-                      {box.name}
-                    </h3>
-                    <p className="text-gray-700">{box.brand}</p>
+                    <div className="flex items-center gap-6 mb-2">
+                      <h3 className={`text-lg font-semibold ${isDeleted ? 'text-gray-500 line-through' : 'text-gray-900'}`}>
+                        {box.name} | {box.brand}
+                      </h3>
+                      {!isDeleted && (
+                        <>
+                          <div className="flex items-center gap-2">
+                            <div className="w-72 bg-gray-200 rounded-full h-4">
+                              <div
+                                className="bg-green-600 h-4 rounded-full transition-all duration-300"
+                                style={{ width: `${box.totalKg > 0 ? ((box.totalKg - box.remainingKg) / box.totalKg) * 100 : 0}%` }}
+                              ></div>
+                            </div>
+                            <span className="text-lg font-bold text-gray-700">
+                              {box.totalKg > 0 ? Math.round(((box.totalKg - box.remainingKg) / box.totalKg) * 100) : 0}%
+                            </span>
+                          </div>
+                        </>
+                      )}
+                    </div>
                     {isDeleted && (
-                      <p className="text-sm text-gray-500 mt-1">
+                      <p className="text-xs text-gray-500 mt-1">
                         Excluída em {new Date(box.deletedAt!).toLocaleDateString('pt-BR')}
                       </p>
                     )}
                   </div>
-                  <span className={`px-3 py-1 rounded-full text-sm font-medium ${getStatusColor(box.status, isDeleted)}`}>
+                  <span className={`px-2 py-1 rounded-full text-xs font-medium ${getStatusColor(box.status, isDeleted)}`}>
                     {getStatusText(boxStatus, isDeleted)}
                   </span>
                 </div>
 
-                <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-4">
+                <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-3 mb-3">
                   <div>
-                    <p className="text-sm text-gray-700">Preço/kg</p>
-                    <p className="font-semibold text-gray-900">R$ {box.pricePerKg.toFixed(2)}</p>
+                    <p className="text-xs text-gray-700">Preço/kg</p>
+                    <p className="font-semibold text-gray-900 text-sm">R$ {box.pricePerKg.toFixed(2)}</p>
                   </div>
                   <div>
-                    <p className="text-sm text-gray-700">Total</p>
-                    <p className="font-semibold text-gray-900">{box.totalKg}kg</p>
+                    <p className="text-xs text-gray-700">Total</p>
+                    <p className="font-semibold text-gray-900 text-sm">{box.totalKg}kg</p>
                   </div>
                   <div>
-                    <p className="text-sm text-gray-700">Restante</p>
-                    <p className="font-semibold text-gray-900">{box.remainingKg}kg</p>
+                    <p className="text-xs text-gray-700">Restante</p>
+                    <p className="font-semibold text-gray-900 text-sm">{box.remainingKg}kg</p>
                   </div>
                   <div>
-                    <p className="text-sm text-gray-700">Mínimo/pessoa</p>
-                    <p className="font-semibold text-gray-900">{box.minKgPerPerson}kg</p>
+                    <p className="text-xs text-gray-700">Mínimo/pessoa</p>
+                    <p className="font-semibold text-gray-900 text-sm">{box.minKgPerPerson}kg</p>
+                  </div>
+                  <div>
+                    <p className="text-xs text-gray-700">Pagamento</p>
+                    <p className="font-semibold text-gray-900 text-sm capitalize">{box.paymentType === 'prepaid' ? 'Pré-pago' : 'Pós-pago'}</p>
                   </div>
                 </div>
 
                 {/* Fluxo de Status */}
                 <StatusFlow currentStatus={boxStatus} type="box" />
 
-                {/* Barra de progresso */}
-                {!isDeleted && (
-                  <div className="mb-4">
-                    <div className="flex justify-between text-sm text-gray-700 mb-1">
-                      <span>Progresso</span>
-                      <span>{box.totalKg > 0 ? Math.round(((box.totalKg - box.remainingKg) / box.totalKg) * 100) : 0}%</span>
-                    </div>
-                    <div className="w-full bg-gray-200 rounded-full h-2">
-                      <div
-                        className="bg-green-600 h-2 rounded-full"
-                        style={{ width: `${box.totalKg > 0 ? ((box.totalKg - box.remainingKg) / box.totalKg) * 100 : 0}%` }}
-                      ></div>
-                    </div>
-                  </div>
-                )}
-
                 {/* Ações */}
-                <div className="flex gap-2">
+                <div className="flex flex-wrap gap-1">
                   {!isDeleted ? (
                     <>
                       <Link
                         to={`/admin/box/${box.id}`}
-                        className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg text-sm font-medium"
+                        className="bg-blue-600 hover:bg-blue-700 text-white px-3 py-1.5 rounded text-xs font-medium"
                       >
                         Ver Detalhes
                       </Link>
                       <Link
                         to={`/admin/box/${box.id}/edit`}
-                        className="bg-gray-600 hover:bg-gray-700 text-white px-4 py-2 rounded-lg text-sm font-medium"
+                        className="bg-gray-600 hover:bg-gray-700 text-white px-3 py-1.5 rounded text-xs font-medium"
                       >
                         Editar
                       </Link>
                       <button
                         onClick={() => handleDeleteBox(box)}
-                        className="bg-red-600 hover:bg-red-700 text-white px-4 py-2 rounded-lg text-sm font-medium"
+                        className="bg-red-600 hover:bg-red-700 text-white px-3 py-1.5 rounded text-xs font-medium"
                       >
                         🗑️ Excluir
                       </button>
                       <button
                         onClick={() => handleBatchUpdate(box)}
                         disabled={!!batchRunningIds[box.id]}
-                        className="bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2 rounded-lg text-sm font-medium"
+                        className="bg-indigo-600 hover:bg-indigo-700 text-white px-3 py-1.5 rounded text-xs font-medium"
                       >
-                        {batchRunningIds[box.id] ? 'Processando...' : 'Batch de atualização'}
+                        {batchRunningIds[box.id] ? 'Processando...' : 'Batch'}
                       </button>
                       {boxStatus === BoxStatus.WAITING_PURCHASES && (
                         <button
                           onClick={() => openStatusModal(box, BoxStatus.WAITING_SUPPLIER_ORDER)}
-                          className="bg-yellow-600 hover:bg-yellow-700 text-white px-4 py-2 rounded-lg text-sm font-medium"
+                          className="bg-yellow-600 hover:bg-yellow-700 text-white px-3 py-1.5 rounded text-xs font-medium"
                         >
-                          Iniciar Pedido ao Fornecedor
+                          Iniciar Pedido
                         </button>
                       )}
                       {boxStatus === BoxStatus.WAITING_SUPPLIER_ORDER && (
                         <button
                           onClick={() => openStatusModal(box, BoxStatus.WAITING_SUPPLIER_DELIVERY)}
-                          className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg text-sm font-medium"
+                          className="bg-blue-600 hover:bg-blue-700 text-white px-3 py-1.5 rounded text-xs font-medium"
                         >
                           Pedido Realizado
                         </button>
@@ -406,7 +410,7 @@ export default function AdminPage() {
                       {boxStatus === BoxStatus.WAITING_SUPPLIER_DELIVERY && (
                         <button
                           onClick={() => openStatusModal(box, BoxStatus.SUPPLIER_DELIVERY_RECEIVED)}
-                          className="bg-purple-600 hover:bg-purple-700 text-white px-4 py-2 rounded-lg text-sm font-medium"
+                          className="bg-purple-600 hover:bg-purple-700 text-white px-3 py-1.5 rounded text-xs font-medium"
                         >
                           Mercadoria Recebida
                         </button>
@@ -414,7 +418,7 @@ export default function AdminPage() {
                       {boxStatus === BoxStatus.SUPPLIER_DELIVERY_RECEIVED && (
                         <button
                           onClick={() => openStatusModal(box, BoxStatus.DISPATCHING)}
-                          className="bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2 rounded-lg text-sm font-medium"
+                          className="bg-indigo-600 hover:bg-indigo-700 text-white px-3 py-1.5 rounded text-xs font-medium"
                         >
                           Iniciar Despacho
                         </button>
@@ -422,23 +426,23 @@ export default function AdminPage() {
                       {boxStatus === BoxStatus.DISPATCHING && (
                         <button
                           onClick={() => openStatusModal(box, BoxStatus.COMPLETED)}
-                          className="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-lg text-sm font-medium"
+                          className="bg-green-600 hover:bg-green-700 text-white px-3 py-1.5 rounded text-xs font-medium"
                         >
                           Finalizar Caixa
                         </button>
                       )}
                     </>
                   ) : (
-                    <div className="flex gap-2">
+                    <div className="flex gap-1">
                       <button
                         onClick={() => handleRestoreBox(box)}
-                        className="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-lg text-sm font-medium"
+                        className="bg-green-600 hover:bg-green-700 text-white px-3 py-1.5 rounded text-xs font-medium"
                       >
                         🔄 Restaurar
                       </button>
                       <button
                         onClick={() => handlePermanentlyDeleteBox(box)}
-                        className="bg-red-800 hover:bg-red-900 text-white px-4 py-2 rounded-lg text-sm font-medium"
+                        className="bg-red-800 hover:bg-red-900 text-white px-3 py-1.5 rounded text-xs font-medium"
                       >
                         💀 Excluir Permanentemente
                       </button>

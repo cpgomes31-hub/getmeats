@@ -20,6 +20,12 @@ export default function Login() {
 
   // Redirecionar automaticamente após login bem-sucedido
   useEffect(() => {
+    // Só redirecionar se não estamos mostrando uma mensagem de sucesso recente
+    // Isso evita redirecionamento imediato quando o user ainda está logando
+    if (message?.includes('sucesso') || message?.includes('realizado')) {
+      return
+    }
+
     // Aguardar tanto user quanto profile serem definidos (não null/undefined)
     if (user && !isAdmin && profile !== undefined) {
       if (profile === null) {
@@ -42,7 +48,7 @@ export default function Login() {
         navigate('/complete-profile')
       }
     }
-  }, [user, profile, isAdmin, navigate])
+  }, [user, profile, isAdmin, navigate, message])
 
   const signInWithGoogleHandler = async () => {
     try {

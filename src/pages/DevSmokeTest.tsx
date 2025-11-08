@@ -7,6 +7,7 @@ import {
   runBatchUpdate,
   getPurchasesForBox,
   getAllBoxes,
+  permanentlyDeleteBox,
 } from '../firebase/boxes'
 import { fetchStatusLogs } from '../firebase/statusLogs'
 import { BoxStatus, OrderStatus } from '../types'
@@ -166,6 +167,31 @@ export default function DevSmokeTest() {
     }
   }
 
+  const handleDeleteAllBoxes = async () => {
+    append('⚠️ EXCLUINDO TODAS AS CAIXAS E SEUS PEDIDOS VINCULADOS...')
+    try {
+      const boxes = await getAllBoxes(true) // incluir deletadas também
+      if (!boxes.length) {
+        append('Nenhuma caixa encontrada para excluir.')
+        return
+      }
+      
+      append(`Encontradas ${boxes.length} caixas. Iniciando exclusão...`)
+      
+      for (const box of boxes) {
+        append(`🗑️ Excluindo caixa "${box.name}" (${box.id}) e todos os seus pedidos...`)
+        await permanentlyDeleteBox(box.id)
+        append(`✅ Caixa ${box.id} e pedidos excluídos permanentemente`)
+      }
+      
+      append(`🎉 Todas as ${boxes.length} caixas e seus pedidos foram excluídos com sucesso!`)
+      append('💡 O banco de dados foi limpo completamente')
+      
+    } catch (err: any) {
+      append('❌ Error deleting boxes: ' + (err.message || String(err)))
+    }
+  }
+
   return (
     <div className="space-y-4">
       <h2 className="text-xl">Dev Smoke Test</h2>
@@ -187,6 +213,11 @@ export default function DevSmokeTest() {
       <div className="flex items-center gap-2 mt-2">
           <button onClick={handlePayAllPurchasesForBox} className="px-3 py-1 bg-green-500 rounded font-bold">💰 Pagar Todos os Pedidos da Caixa</button>
           <span className="text-sm text-gray-400">Use o campo acima para informar o código da caixa</span>
+      </div>
+
+      <div className="flex items-center gap-2 mt-2">
+          <button onClick={handleDeleteAllBoxes} className="px-3 py-1 bg-red-700 rounded font-bold hover:bg-red-800">🗑️ EXCLUIR TODAS AS CAIXAS</button>
+          <span className="text-sm text-red-400">⚠️ CUIDADO: Isso excluirá permanentemente todas as caixas e pedidos!</span>
       </div>
 
       <div className="mt-4 bg-gray-900 p-3 rounded max-h-96 overflow-auto">

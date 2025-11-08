@@ -96,6 +96,32 @@ export async function getPurchasesForBox(boxId: string): Promise<Purchase[]> {
   return snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Purchase))
 }
 
+/**
+ * Recalcula e atualiza o remainingKg de uma caixa baseado nos pedidos ativos
+ */
+async function updateBoxRemainingKg(boxId: string): Promise<void> {
+  try {
+    const boxDocRef = doc(db, 'boxes', boxId)
+    const boxSnap = await getDoc(boxDocRef)
+    if (!boxSnap.exists()) return
+
+    const box = boxSnap.data() as MeatBox
+    const purchases = await getPurchasesForBox(boxId)
+    
+    // Calculate total kg reserved (only active purchases, not cancelled)
+    const totalKgReserved = purchases
+      .filter(p => (p.status as OrderStatus) !== OrderStatus.CANCELLED)
+      .reduce((sum, p) => sum + (p.kgPurchased || 0), 0)
+    
+    const newRemainingKg = Math.max(0, box.totalKg - totalKgReserved)
+    
+    await updateBox(boxId, { remainingKg: newRemainingKg })
+  } catch (error) {
+    console.error('Error updating box remaining kg:', error)
+    throw error
+  }
+}
+
 export async function createPurchase(purchaseData: Omit<Purchase, 'id' | 'orderNumber' | 'createdAt' | 'updatedAt'>): Promise<string> {
   const now = new Date().toISOString()
   const orderNumber = `GM${Date.now().toString().slice(-8)}` // Generate order number: GM + last 8 digits of timestamp
@@ -106,6 +132,13 @@ export async function createPurchase(purchaseData: Omit<Purchase, 'id' | 'orderN
     createdAt: now,
     updatedAt: now,
   })
+  
+  // Update box remaining kg after creating purchase
+  try {
+    await updateBoxRemainingKg(purchaseData.boxId)
+  } catch (err) {
+    console.error('Error updating box remaining kg after createPurchase:', err)
+  }
   
   // After creating a purchase, evaluate whether the box needs to move to supplier-request state
   try {
@@ -122,6 +155,17 @@ export async function updatePurchase(purchaseId: string, updates: Partial<Purcha
     ...updates,
     updatedAt: new Date().toISOString(),
   })
+
+  // Update box remaining kg after updating purchase
+  try {
+    const purchaseDoc = await getDoc(doc(db, 'purchases', purchaseId))
+    if (purchaseDoc.exists()) {
+      const p = purchaseDoc.data() as Purchase
+      if (p.boxId) await updateBoxRemainingKg(p.boxId)
+    }
+  } catch (err) {
+    console.error('Error updating box remaining kg after updatePurchase:', err)
+  }
 
   // Re-load the purchase to get its boxId and re-evaluate box closure
   try {
