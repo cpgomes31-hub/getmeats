@@ -5,6 +5,7 @@ import Login from './pages/Login'
 import CompleteProfile from './pages/CompleteProfile'
 import Purchase from './pages/Purchase'
 import MyOrders from './pages/MyOrders'
+import Profile from './pages/Profile'
 import AdminLogin from './pages/AdminLogin'
 import AdminPage from './pages/Admin'
 import AdminNewBox from './pages/AdminNewBox'
@@ -12,6 +13,8 @@ import AdminBoxDetails from './pages/AdminBoxDetails'
 import AdminEditBox from './pages/AdminEditBox'
 import AdminRoute from './components/AdminRoute'
 import { useAuth } from './context/AuthContext'
+import DevSmokeTest from './pages/DevSmokeTest'
+import StatusDiagnostic from './pages/StatusDiagnostic'
 
 // Importar função de teste do Mercado Pago para debug
 import './mercadopago/test-token.js'
@@ -33,7 +36,10 @@ export default function App() {
             // Usuário logado (cliente ou admin)
             <>
               {!isAdmin && (
-                <Link to="/my-orders" className="text-gray-300 hover:text-white">Meus Pedidos</Link>
+                <>
+                  <Link to="/my-orders" className="text-gray-300 hover:text-white">Meus Pedidos</Link>
+                  <Link to="/profile" className="text-gray-300 hover:text-white">Meus Dados</Link>
+                </>
               )}
               {isAdmin && (
                 <Link to="/admin" className="text-gray-300 hover:text-white">Admin</Link>
@@ -60,12 +66,15 @@ export default function App() {
 
       <main className="p-6">
         <Routes>
+          <Route path="/__dev-smoke" element={<DevSmokeTest />} />
+          <Route path="/__status-diagnostic" element={<StatusDiagnostic />} />
           <Route path="/" element={<Home />} />
           <Route path="/login" element={<Login />} />
           <Route path="/admin-login" element={<AdminLogin />} />
           <Route path="/complete-profile" element={<CompleteProfile />} />
           <Route path="/purchase/:boxId" element={<Purchase />} />
           <Route path="/my-orders" element={<MyOrders />} />
+          <Route path="/profile" element={<Profile />} />
           <Route path="/admin" element={<AdminRoute><AdminPage /></AdminRoute>} />
           <Route path="/admin/new" element={<AdminRoute><AdminNewBox /></AdminRoute>} />
           <Route path="/admin/box/:boxId" element={<AdminRoute><AdminBoxDetails /></AdminRoute>} />

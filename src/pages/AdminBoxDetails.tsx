@@ -1,8 +1,12 @@
 import React, { useState, useEffect } from 'react'
 import { useParams, useNavigate, Link } from 'react-router-dom'
-import { getAllBoxes, getPurchasesForBox, updateBoxStatus } from '../firebase/boxes'
+import { getAllBoxes, getPurchasesForBox, changeBoxStatus, changePurchaseStatus } from '../firebase/boxes'
+import { OrderStatus } from '../types'
+import { getValidNextStatuses, isValidStatusTransition } from '../types/status'
+import StatusChangeModal from '../components/StatusChangeModal'
 import { getUserProfile } from '../firebase/auth'
 import { MeatBox, Purchase, UserProfile, BoxStatus } from '../types'
+import { useAuth } from '../context/AuthContext'
 
 export default function AdminBoxDetails() {
   const { boxId } = useParams<{ boxId: string }>()
@@ -11,12 +15,17 @@ export default function AdminBoxDetails() {
   const [purchases, setPurchases] = useState<Purchase[]>([])
   const [userProfiles, setUserProfiles] = useState<Record<string, UserProfile>>({})
   const [loading, setLoading] = useState(true)
+  const [selectedPurchase, setSelectedPurchase] = useState<Purchase | null>(null)
+  const [isStatusModalOpen, setIsStatusModalOpen] = useState(false)
+  const [desiredNewStatus, setDesiredNewStatus] = useState<OrderStatus | null>(null)
 
   useEffect(() => {
     if (boxId) {
       loadBoxDetails()
     }
   }, [boxId])
+
+  const { user } = useAuth()
 
   const loadBoxDetails = async () => {
     if (!boxId) return
@@ -52,14 +61,51 @@ export default function AdminBoxDetails() {
     }
   }
 
-  const handleStatusChange = async (newStatus: string) => {
+  const handleStatusChange = async (newStatus: BoxStatus) => {
     if (!box) return
 
     try {
-      await updateBoxStatus(box.id, newStatus)
+      await changeBoxStatus(box, newStatus, { userId: user?.uid || 'system', reason: 'Admin changed status via details view', force: false })
       await loadBoxDetails() // Recarregar dados
     } catch (error) {
       console.error('Error updating box status:', error)
+    }
+  }
+
+  const openEditPurchaseStatus = (purchase: Purchase) => {
+    // Determine default next status: prefer the first valid next status, but
+    // ensure DISPATCHING_TO_CLIENT is available so admin can mark dispatching.
+    const validNext = getValidNextStatuses(purchase.status, 'order') as OrderStatus[]
+    let defaultNext: OrderStatus | null = validNext && validNext.length ? validNext[0] : null
+    if (!validNext.includes(OrderStatus.DISPATCHING_TO_CLIENT)) {
+      // if dispatching isn't a natural next, allow admin to pick it explicitly
+      // by default.
+      defaultNext = defaultNext || OrderStatus.DISPATCHING_TO_CLIENT
+    }
+    setSelectedPurchase(purchase)
+    setDesiredNewStatus(defaultNext)
+    setIsStatusModalOpen(true)
+  }
+
+  const closeStatusModal = () => {
+    setIsStatusModalOpen(false)
+    setSelectedPurchase(null)
+    setDesiredNewStatus(null)
+  }
+
+  const handleConfirmPurchaseStatusChange = async ({ forced }: { forced: boolean; reason?: string; password?: string }) => {
+    if (!selectedPurchase || !desiredNewStatus) throw new Error('No purchase or new status selected')
+    try {
+      const res = await changePurchaseStatus(selectedPurchase, desiredNewStatus, { userId: user?.uid || 'system', reason: (arguments[0] as any)?.reason, force: forced })
+      await loadBoxDetails()
+      if (res && res.boxUpdated) {
+        alert('Pedido atualizado e caixa automaticamente alterada.')
+      } else {
+        alert('Pedido atualizado com sucesso.')
+      }
+    } catch (err: any) {
+      console.error('Error changing purchase status:', err)
+      throw err
     }
   }
 
@@ -103,6 +149,24 @@ export default function AdminBoxDetails() {
       case 'dispatching': return 'Despachando'
       case 'delivered': return 'Entregue'
       case 'cancelled': return 'Cancelado'
+      default: return status
+    }
+  }
+
+  const getPaymentStatusColor = (status: string) => {
+    switch (status) {
+      case 'pending': return 'bg-yellow-100 text-yellow-800'
+      case 'paid': return 'bg-green-100 text-green-800'
+      case 'refunded': return 'bg-blue-100 text-blue-800'
+      default: return 'bg-gray-100 text-gray-800'
+    }
+  }
+
+  const getPaymentStatusText = (status: string) => {
+    switch (status) {
+      case 'pending': return 'Pendente'
+      case 'paid': return 'Pago'
+      case 'refunded': return 'Reembolsado'
       default: return status
     }
   }
@@ -175,14 +239,6 @@ export default function AdminBoxDetails() {
               </span>
             </div>
             <div className="flex gap-2">
-              {box.status === BoxStatus.WAITING_PURCHASES && (
-                <button
-                  onClick={() => handleStatusChange(BoxStatus.WAITING_SUPPLIER_ORDER)}
-                  className="bg-yellow-600 hover:bg-yellow-700 text-white px-4 py-2 rounded-lg text-sm font-medium"
-                >
-                  Iniciar Cobrança
-                </button>
-              )}
               {box.status === BoxStatus.WAITING_SUPPLIER_ORDER && (
                 <button
                   onClick={() => handleStatusChange(BoxStatus.COMPLETED)}
@@ -191,14 +247,9 @@ export default function AdminBoxDetails() {
                   Finalizar Caixa
                 </button>
               )}
-              {isFullyReserved && box.status === BoxStatus.WAITING_PURCHASES && (
-                <button
-                  onClick={() => handleStatusChange(BoxStatus.WAITING_SUPPLIER_ORDER)}
-                  className="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-lg text-sm font-medium animate-pulse"
-                >
-                  🏆 Finalizar (100% Reservada!)
-                </button>
-              )}
+              {/* Note: "Iniciar Cobrança" and the 100% reserved quick-finalize button were removed
+                  because box transitions to 'Aguardando pedido ao fornecedor' now happen
+                  automatically when the box is fully reserved and all purchases are paid. */}
             </div>
           </div>
         </div>
@@ -296,12 +347,18 @@ export default function AdminBoxDetails() {
                     <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                       Usuário
                     </th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                      Quantidade
-                    </th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                      Status
-                    </th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                        Quantidade
+                      </th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                        Pagamento
+                      </th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                        Valor
+                      </th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                        Status
+                      </th>
                     <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                       Data
                     </th>
@@ -329,6 +386,16 @@ export default function AdminBoxDetails() {
                           </span>
                         </td>
                         <td className="px-6 py-4 whitespace-nowrap">
+                          <span className={`px-2 py-1 rounded-full text-xs font-medium ${getPaymentStatusColor(purchase.paymentStatus)}`}>
+                            {getPaymentStatusText(purchase.paymentStatus)}
+                          </span>
+                        </td>
+
+                        <td className="px-6 py-4 whitespace-nowrap">
+                          <span className="text-sm font-semibold text-gray-900">{new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(purchase.totalAmount || 0)}</span>
+                        </td>
+
+                        <td className="px-6 py-4 whitespace-nowrap">
                           <span className={`px-2 py-1 rounded-full text-xs font-medium ${getPurchaseStatusColor(purchase.status)}`}>
                             {getPurchaseStatusText(purchase.status)}
                           </span>
@@ -346,6 +413,12 @@ export default function AdminBoxDetails() {
                           >
                             Ver Detalhes
                           </button>
+                          <button
+                            onClick={() => openEditPurchaseStatus(purchase)}
+                            className="ml-3 text-indigo-600 hover:text-indigo-900"
+                          >
+                            Editar Status
+                          </button>
                         </td>
                       </tr>
                     )
@@ -355,6 +428,20 @@ export default function AdminBoxDetails() {
             </div>
           )}
         </div>
+        {/* Status edit modal for purchases */}
+        {selectedPurchase && desiredNewStatus && (
+          <StatusChangeModal
+            isOpen={isStatusModalOpen}
+            onClose={closeStatusModal}
+            currentStatus={selectedPurchase!.status}
+            newStatus={desiredNewStatus!}
+            type="order"
+            itemName={`Pedido ${selectedPurchase!.orderNumber}`}
+            onConfirm={async (opts) => {
+              await handleConfirmPurchaseStatusChange(opts as any)
+            }}
+          />
+        )}
       </div>
     </div>
   )

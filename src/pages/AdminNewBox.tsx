@@ -14,6 +14,7 @@ interface BoxFormData {
   minKgPerPerson: number
   status: BoxStatus
   paymentType: 'prepaid' | 'postpaid'
+  sendPix: boolean
 }
 
 export default function AdminNewBox() {
@@ -29,15 +30,21 @@ export default function AdminNewBox() {
     remainingKg: 0,
     minKgPerPerson: 1,
     status: BoxStatus.WAITING_PURCHASES,
-    paymentType: 'prepaid'
+    paymentType: 'prepaid',
+    sendPix: true
   })
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
     const { name, value } = e.target
+    const integerFields = ['totalKg', 'remainingKg', 'minKgPerPerson']
+    const decimalFields = ['pricePerKg', 'costPerKg']
+
     setFormData(prev => ({
       ...prev,
-      [name]: name.includes('Kg') || name.includes('price') || name.includes('cost')
-        ? parseFloat(value) || 0
+      [name]: integerFields.includes(name)
+        ? (parseInt(value, 10) || 0)
+        : decimalFields.includes(name)
+        ? (parseFloat(value) || 0)
         : value
     }))
   }
@@ -70,7 +77,8 @@ export default function AdminNewBox() {
       const boxData = {
         ...formData,
         photos: filteredPhotos.length > 0 ? filteredPhotos : ['https://via.placeholder.com/400x300?text=Sem+Foto'],
-        remainingKg: formData.totalKg // Inicialmente restante = total
+        remainingKg: formData.totalKg, // Inicialmente restante = total
+        sendPix: formData.sendPix,
       }
 
       await createBox(boxData)
@@ -176,7 +184,7 @@ export default function AdminNewBox() {
                 name="totalKg"
                 required
                 min="0"
-                step="0.1"
+                step="1"
                 value={formData.totalKg}
                 onChange={handleInputChange}
                 className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-red-500 text-gray-900"
@@ -191,12 +199,12 @@ export default function AdminNewBox() {
                 type="number"
                 name="minKgPerPerson"
                 required
-                min="0.1"
-                step="0.1"
+                min="0"
+                step="1"
                 value={formData.minKgPerPerson}
                 onChange={handleInputChange}
                 className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-red-500 text-gray-900"
-                placeholder="1.0"
+                placeholder="1"
               />
             </div>
           </div>
@@ -215,6 +223,17 @@ export default function AdminNewBox() {
               <option value="prepaid">Pré-pago (pagar antes)</option>
               <option value="postpaid">Pós-pago (pagar depois)</option>
             </select>
+          </div>
+
+          <div className="flex items-center gap-3">
+            <input
+              type="checkbox"
+              name="sendPix"
+              checked={formData.sendPix}
+              onChange={(e) => setFormData(prev => ({ ...prev, sendPix: e.target.checked }))}
+              className="h-4 w-4 text-red-600 rounded"
+            />
+            <label className="text-sm text-gray-700">Enviar link Pix automaticamente (quando pré-pago)</label>
           </div>
 
           {/* Fotos */}

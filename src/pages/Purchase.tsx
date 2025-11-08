@@ -57,10 +57,20 @@ export default function Purchase() {
 
   function validatePurchase(): string | null {
     if (!box) return 'Caixa não carregada'
-    const kg = parseFloat(kgDesired)
+    if (!kgDesired.trim()) return 'Informe a quantidade desejada'
+    if (!/^[0-9]+$/.test(kgDesired.trim())) return 'Utilize apenas números inteiros'
+
+    const kg = parseInt(kgDesired, 10)
     if (isNaN(kg) || kg <= 0) return 'Quantidade inválida'
-    if (kg > box.remainingKg) return `Máximo disponível: ${box.remainingKg}kg`
-    if (box.minKgPerPerson > 0 && kg < box.minKgPerPerson) return `Mínimo: ${box.minKgPerPerson}kg`
+    if (kg > Math.round(box.remainingKg)) return `Máximo disponível: ${Math.round(box.remainingKg)}kg`
+
+    const hasMinimum = box.minKgPerPerson > 0
+    const enforceMinimum = hasMinimum && Math.round(box.remainingKg) >= box.minKgPerPerson
+
+    if (enforceMinimum && kg < box.minKgPerPerson) {
+      return `Mínimo: ${box.minKgPerPerson}kg`
+    }
+
     return null
   }
 
@@ -76,7 +86,7 @@ export default function Purchase() {
 
     setSubmitting(true)
     try {
-      const kg = parseFloat(kgDesired)
+  const kg = parseInt(kgDesired, 10)
       const totalAmount = kg * box.pricePerKg
 
       // Create purchase
@@ -91,11 +101,11 @@ export default function Purchase() {
 
       // Update box remaining kg
       await updateBox(box.id, {
-        remainingKg: box.remainingKg - kg,
+        remainingKg: Math.max(0, Math.round(box.remainingKg) - kg),
       })
 
-      // If prepaid, generate Pix and send email
-      if (box.paymentType === 'prepaid') {
+  // If prepaid and sending Pix is enabled for this box, generate Pix and send email
+  if (box.paymentType === 'prepaid' && box.sendPix !== false) {
         try {
           const pixPayment = await createPixPayment({
             amount: totalAmount,
@@ -178,13 +188,24 @@ export default function Purchase() {
           </label>
           <input
             type="number"
-            step="0.1"
+            step="1"
+            min="1"
             value={kgDesired}
-            onChange={e => setKgDesired(e.target.value)}
+            onChange={e => {
+              const { value } = e.target
+              if (value === '' || /^[0-9]+$/.test(value)) {
+                setKgDesired(value)
+              }
+            }}
             className="w-full p-2 rounded bg-gray-800 text-white"
-            placeholder="Ex: 2.5"
+            placeholder="Ex: 2"
             required
           />
+          {box.minKgPerPerson > 0 && Math.round(box.remainingKg) < box.minKgPerPerson && (
+            <p className="mt-2 text-sm text-yellow-400">
+              Restam apenas {Math.round(box.remainingKg)}kg. Você pode comprar esse saldo final mesmo abaixo do mínimo previsto.
+            </p>
+          )}
         </div>
 
         <button

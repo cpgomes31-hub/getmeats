@@ -35,7 +35,7 @@ const BOX_STATUS_TRANSITIONS: Record<BoxStatus, BoxStatus[]> = {
   [BoxStatus.WAITING_SUPPLIER_ORDER]: [BoxStatus.WAITING_SUPPLIER_DELIVERY, BoxStatus.CANCELLED],
   [BoxStatus.WAITING_SUPPLIER_DELIVERY]: [BoxStatus.SUPPLIER_DELIVERY_RECEIVED],
   [BoxStatus.SUPPLIER_DELIVERY_RECEIVED]: [BoxStatus.DISPATCHING],
-  [BoxStatus.DISPATCHING]: [BoxStatus.COMPLETED],
+  [BoxStatus.DISPATCHING]: [],
   [BoxStatus.COMPLETED]: [],
   [BoxStatus.CANCELLED]: []
 };
@@ -44,13 +44,13 @@ const BOX_STATUS_TRANSITIONS: Record<BoxStatus, BoxStatus[]> = {
  * Transições válidas para Status dos Pedidos
  */
 const ORDER_STATUS_TRANSITIONS: Record<OrderStatus, OrderStatus[]> = {
-  [OrderStatus.WAITING_PAYMENT]: [OrderStatus.WAITING_BOX_CLOSURE],
-  [OrderStatus.WAITING_BOX_CLOSURE]: [OrderStatus.IN_PURCHASE_PROCESS],
-  [OrderStatus.IN_PURCHASE_PROCESS]: [OrderStatus.WAITING_SUPPLIER],
-  [OrderStatus.WAITING_SUPPLIER]: [OrderStatus.WAITING_CLIENT_SHIPMENT],
-  [OrderStatus.WAITING_CLIENT_SHIPMENT]: [OrderStatus.DISPATCHING_TO_CLIENT],
-  [OrderStatus.DISPATCHING_TO_CLIENT]: [OrderStatus.DELIVERED_TO_CLIENT],
-  [OrderStatus.DELIVERED_TO_CLIENT]: [],
+  [OrderStatus.WAITING_PAYMENT]: [OrderStatus.WAITING_BOX_CLOSURE, OrderStatus.CANCELLED],
+  [OrderStatus.WAITING_BOX_CLOSURE]: [OrderStatus.IN_PURCHASE_PROCESS, OrderStatus.CANCELLED],
+  [OrderStatus.IN_PURCHASE_PROCESS]: [OrderStatus.WAITING_SUPPLIER, OrderStatus.CANCELLED],
+  [OrderStatus.WAITING_SUPPLIER]: [OrderStatus.WAITING_CLIENT_SHIPMENT, OrderStatus.CANCELLED],
+  [OrderStatus.WAITING_CLIENT_SHIPMENT]: [OrderStatus.DISPATCHING_TO_CLIENT, OrderStatus.CANCELLED],
+  [OrderStatus.DISPATCHING_TO_CLIENT]: [OrderStatus.DELIVERED_TO_CLIENT, OrderStatus.CANCELLED],
+  [OrderStatus.DELIVERED_TO_CLIENT]: [OrderStatus.CANCELLED],
   [OrderStatus.CANCELLED]: []
 };
 
@@ -64,48 +64,19 @@ const ORDER_STATUS_TRANSITIONS: Record<OrderStatus, OrderStatus[]> = {
 export function isValidStatusTransition(
   currentStatus: BoxStatus | OrderStatus,
   nextStatus: BoxStatus | OrderStatus,
-  type: 'box' | 'order'
+  type: 'box' | 'order',
+  options: { forced?: boolean } = {}
 ): boolean {
+  if (currentStatus === nextStatus) return true;
+  if (options.forced) return true;
+
   if (type === 'box') {
     const transitions = BOX_STATUS_TRANSITIONS[currentStatus as BoxStatus];
     return transitions ? transitions.includes(nextStatus as BoxStatus) : false;
-  } else {
-    const transitions = ORDER_STATUS_TRANSITIONS[currentStatus as OrderStatus];
-    return transitions ? transitions.includes(nextStatus as OrderStatus) : false;
   }
-}
 
-/**
- * Mapeamento dos status antigos para os novos (para compatibilidade com dados existentes)
- */
-export const LEGACY_BOX_STATUS_MAP: Record<string, BoxStatus> = {
-  'awaiting_customer_purchases': BoxStatus.WAITING_PURCHASES,
-  'awaiting_supplier_purchase': BoxStatus.WAITING_SUPPLIER_ORDER,
-  'awaiting_supplier_delivery': BoxStatus.WAITING_SUPPLIER_DELIVERY,
-  'received_at_warehouse': BoxStatus.SUPPLIER_DELIVERY_RECEIVED,
-  'dispatching_to_customers': BoxStatus.DISPATCHING,
-  'completed': BoxStatus.COMPLETED,
-  'cancelled': BoxStatus.CANCELLED
-};
-
-export const LEGACY_ORDER_STATUS_MAP: Record<string, OrderStatus> = {
-  'awaiting_box_closure': OrderStatus.WAITING_BOX_CLOSURE,
-  'awaiting_payment': OrderStatus.WAITING_PAYMENT,
-  'awaiting_supplier': OrderStatus.WAITING_SUPPLIER,
-  'dispatching': OrderStatus.DISPATCHING_TO_CLIENT,
-  'delivered': OrderStatus.DELIVERED_TO_CLIENT,
-  'cancelled': OrderStatus.CANCELLED
-};
-
-/**
- * Converte status legado para novo formato
- */
-export function mapLegacyBoxStatus(legacyStatus: string): BoxStatus {
-  return LEGACY_BOX_STATUS_MAP[legacyStatus] || BoxStatus.WAITING_PURCHASES;
-}
-
-export function mapLegacyOrderStatus(legacyStatus: string): OrderStatus {
-  return LEGACY_ORDER_STATUS_MAP[legacyStatus] || OrderStatus.WAITING_PAYMENT;
+  const transitions = ORDER_STATUS_TRANSITIONS[currentStatus as OrderStatus];
+  return transitions ? transitions.includes(nextStatus as OrderStatus) : false;
 }
 
 /**

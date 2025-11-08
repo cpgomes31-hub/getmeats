@@ -1,7 +1,9 @@
-import { collection, doc, getDocs, addDoc, updateDoc, query, where, orderBy, deleteDoc } from 'firebase/firestore'
+import { collection, doc, getDocs, getDoc, addDoc, updateDoc, query, where, orderBy, deleteDoc } from 'firebase/firestore'
 import { getFirestore } from 'firebase/firestore'
 import { app } from './config'
-import { MeatBox, Purchase, BoxStatus } from '../types'
+import { MeatBox, Purchase, BoxStatus, OrderStatus } from '../types'
+import { isValidStatusTransition } from '../types/status'
+import { logStatusChange } from './statusLogs'
 
 const db = getFirestore(app)
 
@@ -59,52 +61,15 @@ export async function getDeletedBoxes(): Promise<MeatBox[]> {
 }
 
 export async function getAvailableBoxes(): Promise<MeatBox[]> {
-  // Buscar caixas ativas (não excluídas) e filtrar por status válido no lado do cliente
-  // para manter compatibilidade com dados antigos e novos
   const q = query(collection(db, 'boxes'))
   const snapshot = await getDocs(q)
 
   const boxes = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as MeatBox))
 
-  // Aceitar todos os formatos de status que representam "Aguardando compras"
-  const validWaitingStatuses = [
-    'awaiting_customer_purchases', // legado
-    'WAITING_PURCHASES',           // enum string
-    'Aguardando compras',          // português
-    'aguardando compras',          // português minúsculo
-    'Aguardando Compras',          // português capitalizado
-    'Aguardando Compras',          // duplicado para garantir
-    'Aguardando compras',          // duplicado para garantir
-    'Aguardando compras',          // duplicado para garantir
-    // Enum valor
-    BoxStatus.WAITING_PURCHASES
-  ]
-
-  // Status que tornam a caixa indisponível
-  const unavailableStatuses = [
-    'completed', 'COMPLETED', 'Finalizada', 'finalizada',
-    'cancelled', 'CANCELLED', 'Cancelada', 'cancelada',
-    BoxStatus.COMPLETED,
-    BoxStatus.CANCELLED
-  ]
-
-  const availableBoxes = boxes
+  return boxes
     .filter(box => !box.deletedAt)
-    .filter(box => {
-      // Se status está em unavailableStatuses, não exibir
-      if (unavailableStatuses.includes(box.status)) return false
-      // Se status está em validWaitingStatuses, exibir
-      if (validWaitingStatuses.includes(box.status)) return true
-      // Se status é exatamente o valor do enum
-      if (box.status === BoxStatus.WAITING_PURCHASES) return true
-      // Se status é string e contém "aguardando" e "compra"
-      if (typeof box.status === 'string' && box.status.toLowerCase().includes('aguard') && box.status.toLowerCase().includes('compr')) return true
-      // Se status não está em unavailableStatuses, exibir
-      return false
-    })
+    .filter(box => box.status === BoxStatus.WAITING_PURCHASES)
     .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
-
-  return availableBoxes
 }
 
 export async function createBox(boxData: Omit<MeatBox, 'id' | 'createdAt' | 'updatedAt'>): Promise<string> {
@@ -141,6 +106,13 @@ export async function createPurchase(purchaseData: Omit<Purchase, 'id' | 'orderN
     createdAt: now,
     updatedAt: now,
   })
+  
+  // After creating a purchase, evaluate whether the box needs to move to supplier-request state
+  try {
+    await evaluateBoxClosure(purchaseData.boxId)
+  } catch (err) {
+    console.error('Error evaluating box closure after createPurchase:', err)
+  }
   return docRef.id
 }
 
@@ -150,14 +122,120 @@ export async function updatePurchase(purchaseId: string, updates: Partial<Purcha
     ...updates,
     updatedAt: new Date().toISOString(),
   })
+
+  // Re-load the purchase to get its boxId and re-evaluate box closure
+  try {
+    const purchaseDoc = await getDoc(doc(db, 'purchases', purchaseId))
+    if (purchaseDoc.exists()) {
+      const p = purchaseDoc.data() as Purchase
+      if (p.boxId) await evaluateBoxClosure(p.boxId)
+    }
+  } catch (err) {
+    console.error('Error evaluating box closure after updatePurchase:', err)
+  }
 }
 
-export async function updateBoxStatus(boxId: string, status: string): Promise<void> {
+export async function updateBoxStatus(boxId: string, status: BoxStatus): Promise<void> {
   const docRef = doc(db, 'boxes', boxId)
   await updateDoc(docRef, {
     status,
     updatedAt: new Date().toISOString(),
   })
+}
+
+interface ChangeStatusBase {
+  userId: string
+  reason?: string
+  force?: boolean
+}
+
+// DEPRECATED - Use StatusManager.changeBoxStatusSafe instead
+export async function changeBoxStatus(
+  box: MeatBox,
+  nextStatus: BoxStatus,
+  { userId, reason, force }: ChangeStatusBase
+): Promise<void> {
+  console.warn('⚠️ Using deprecated changeBoxStatus. Use StatusManager.changeBoxStatusSafe instead')
+  
+  const { StatusManager } = await import('./statusManager')
+  await StatusManager.changeBoxStatusSafe(box.id, nextStatus, { userId, reason, force })
+}
+
+
+
+// DEPRECATED - Use StatusManager.changePurchaseStatusSafe instead  
+export async function changePurchaseStatus(
+  purchase: Purchase,
+  nextStatus: OrderStatus,
+  { userId, reason, force }: ChangeStatusBase
+): Promise<{ boxUpdated: boolean }> {
+  console.warn('⚠️ Using deprecated changePurchaseStatus. Use StatusManager.changePurchaseStatusSafe instead')
+  
+  const { StatusManager } = await import('./statusManager')
+  return await StatusManager.changePurchaseStatusSafe(purchase.id, nextStatus, { userId, reason, force })
+}
+
+
+
+/**
+ * Verifica se a caixa pré-paga está 100% comprada e se todos os pedidos estão pagos.
+ * Se sim e a caixa estiver em WAITING_PURCHASES, transiciona automaticamente para
+ * WAITING_SUPPLIER_ORDER (Aguardando pedido ao fornecedor).
+ */
+async function evaluateBoxClosure(boxId: string): Promise<void> {
+  try {
+    const boxDocRef = doc(db, 'boxes', boxId)
+    const boxSnap = await getDoc(boxDocRef)
+    if (!boxSnap.exists()) return
+
+    const box = boxSnap.data() as MeatBox
+
+    // Only apply for prepaid boxes still waiting purchases
+    if (box.paymentType !== 'prepaid' || box.status !== BoxStatus.WAITING_PURCHASES) return
+
+    const purchases = await getPurchasesForBox(boxId)
+    if (!purchases || purchases.length === 0) return
+
+    const totalKgReserved = purchases.reduce((sum, p) => sum + (p.kgPurchased || 0), 0)
+    const fullyReserved = box.totalKg > 0 ? totalKgReserved >= box.totalKg : false
+
+    // Option B: require both fully reserved AND all purchases paid to transition
+    // the box to 'Aguardando pedido ao fornecedor'. This prevents ordering before
+    // payments are settled.
+    const allPaid = purchases.every(p => p.paymentStatus === 'paid')
+
+    if (fullyReserved && allPaid) {
+      const previousStatus = box.status
+      await updateBoxStatus(boxId, BoxStatus.WAITING_SUPPLIER_ORDER)
+      await logStatusChange({
+        entityType: 'box',
+        entityId: boxId,
+        previousStatus,
+        nextStatus: BoxStatus.WAITING_SUPPLIER_ORDER,
+        forced: false,
+        reason: 'Automated transition: 100% reserved and all purchases paid',
+        performedBy: 'system',
+      })
+
+      // Update purchases that were waiting for box closure to 'Em processo de compra'
+      try {
+        for (const purchase of purchases) {
+          if ((purchase.status as OrderStatus) === OrderStatus.WAITING_BOX_CLOSURE) {
+            await changePurchaseStatus(purchase, OrderStatus.IN_PURCHASE_PROCESS, {
+              userId: 'system',
+              reason: 'Automated: box closed and all payments received',
+              force: false,
+            })
+          }
+        }
+      } catch (err) {
+        console.error('Error updating purchases to IN_PURCHASE_PROCESS after box closure:', err)
+      }
+    }
+  } catch (error) {
+    console.error('Error in evaluateBoxClosure:', error)
+    throw error
+  }
 }
 
 export async function getPurchasesForUser(userId: string): Promise<Purchase[]> {
@@ -180,5 +258,79 @@ export async function getPurchasesForUser(userId: string): Promise<Purchase[]> {
   } catch (error) {
     console.error('Erro ao buscar pedidos do usuário:', error)
     throw error
+  }
+}
+
+/**
+ * Run a batch update for a box: evaluate closure rules and align purchases
+ * to the box's current status. Intended to be triggered manually by admins
+ * ("Batch de atualização") to re-apply automated rules.
+ */
+export async function runBatchUpdate(boxId: string): Promise<void> {
+  try {
+    // First, evaluate closure rules which may transition the box automatically
+    await evaluateBoxClosure(boxId)
+
+    // Re-load box and purchases
+    const boxDocRef = doc(db, 'boxes', boxId)
+    const boxSnap = await getDoc(boxDocRef)
+    if (!boxSnap.exists()) return
+    const box = boxSnap.data() as MeatBox
+
+    const purchases = await getPurchasesForBox(boxId)
+
+    // Align purchase statuses according to current box.status
+    for (const purchase of purchases) {
+      try {
+        if (box.status === BoxStatus.WAITING_SUPPLIER_ORDER) {
+          if ((purchase.status as OrderStatus) === OrderStatus.WAITING_BOX_CLOSURE) {
+            await changePurchaseStatus(purchase, OrderStatus.IN_PURCHASE_PROCESS, {
+              userId: 'system',
+              reason: 'Batch update: box closed',
+              force: false,
+            })
+          }
+        } else if (box.status === BoxStatus.WAITING_SUPPLIER_DELIVERY) {
+          if ((purchase.status as OrderStatus) !== OrderStatus.CANCELLED) {
+            await changePurchaseStatus(purchase, OrderStatus.WAITING_SUPPLIER, {
+              userId: 'system',
+              reason: 'Batch update: supplier order placed',
+              // force to guarantee alignment even when intermediate transitions
+              // would otherwise block a direct move to WAITING_SUPPLIER
+              force: true,
+            })
+          }
+        } else if (box.status === BoxStatus.SUPPLIER_DELIVERY_RECEIVED) {
+          if ((purchase.status as OrderStatus) !== OrderStatus.CANCELLED) {
+            await changePurchaseStatus(purchase, OrderStatus.WAITING_CLIENT_SHIPMENT, {
+              userId: 'system',
+              reason: 'Batch update: supplier delivery received',
+              force: false,
+            })
+          }
+        } else if (box.status === BoxStatus.DISPATCHING) {
+          if ((purchase.status as OrderStatus) !== OrderStatus.CANCELLED) {
+            await changePurchaseStatus(purchase, OrderStatus.DISPATCHING_TO_CLIENT, {
+              userId: 'system',
+              reason: 'Batch update: dispatching',
+              force: false,
+            })
+          }
+        } else if (box.status === BoxStatus.COMPLETED) {
+          if ((purchase.status as OrderStatus) !== OrderStatus.CANCELLED) {
+            await changePurchaseStatus(purchase, OrderStatus.DELIVERED_TO_CLIENT, {
+              userId: 'system',
+              reason: 'Batch update: completed',
+              force: false,
+            })
+          }
+        }
+      } catch (err) {
+        console.error(`Error aligning purchase ${purchase.id} during batch update:`, err)
+      }
+    }
+  } catch (err) {
+    console.error('Error running batch update for box:', err)
+    throw err
   }
 }

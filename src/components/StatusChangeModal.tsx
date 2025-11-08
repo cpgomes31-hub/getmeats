@@ -1,4 +1,4 @@
-import React, { useState } from 'react'
+import React, { useEffect, useState } from 'react'
 import { BoxStatus, OrderStatus, isValidStatusTransition, getValidNextStatuses } from '../types/status'
 
 interface StatusChangeModalProps {
@@ -7,7 +7,7 @@ interface StatusChangeModalProps {
   currentStatus: BoxStatus | OrderStatus
   newStatus: BoxStatus | OrderStatus
   type: 'box' | 'order'
-  onConfirm: () => void
+  onConfirm: (options: { forced: boolean; reason?: string; password?: string }) => Promise<void>
   itemName: string
 }
 
@@ -22,31 +22,60 @@ export default function StatusChangeModal({
 }: StatusChangeModalProps) {
   const [adminPassword, setAdminPassword] = useState('')
   const [showAuth, setShowAuth] = useState(false)
+  const [reason, setReason] = useState('')
   const [error, setError] = useState('')
+  const [submitting, setSubmitting] = useState(false)
+
+  useEffect(() => {
+    if (!isOpen) {
+      setAdminPassword('')
+      setShowAuth(false)
+      setReason('')
+      setError('')
+      setSubmitting(false)
+    }
+  }, [isOpen])
 
   const isValidTransition = isValidStatusTransition(currentStatus, newStatus, type)
   const validNextStatuses = getValidNextStatuses(currentStatus, type)
 
-  const handleInitialConfirm = () => {
+  const handleInitialConfirm = async () => {
     if (isValidTransition) {
-      onConfirm()
-      onClose()
+      try {
+        setSubmitting(true)
+        setError('')
+        await onConfirm({ forced: false })
+        onClose()
+      } catch (err: any) {
+        // Surface error to the user instead of leaving modal silent
+        console.error('Error confirming status change:', err)
+        setError(err?.message || 'Erro ao confirmar alteração. Verifique o console.')
+      } finally {
+        setSubmitting(false)
+      }
     } else {
       setShowAuth(true)
     }
   }
 
   const handleForcedChange = async () => {
-    // Aqui você implementaria a validação da senha do admin
-    // Por enquanto, vamos simular uma validação simples
-    if (adminPassword === 'admin123') { // Em produção, isso seria validado no backend
-      onConfirm()
+    if (!reason.trim()) {
+      setError('Informe o motivo da alteração forçada.')
+      return
+    }
+
+    try {
+      setSubmitting(true)
+      await onConfirm({ forced: true, reason: reason.trim(), password: adminPassword })
       onClose()
       setAdminPassword('')
+      setReason('')
       setShowAuth(false)
       setError('')
-    } else {
-      setError('Senha incorreta. Tente novamente.')
+    } catch (authError: any) {
+      setError(authError?.message || 'Não foi possível confirmar. Verifique os dados e tente novamente.')
+    } finally {
+      setSubmitting(false)
     }
   }
 
@@ -129,15 +158,19 @@ export default function StatusChangeModal({
               </button>
               <button
                 onClick={handleInitialConfirm}
+                disabled={submitting}
                 className={`flex-1 py-2 px-4 rounded text-white ${
                   isValidTransition
                     ? 'bg-blue-600 hover:bg-blue-700'
                     : 'bg-red-600 hover:bg-red-700'
                 }`}
               >
-                {isValidTransition ? 'Confirmar' : 'Continuar com Alteração Forçada'}
+                {submitting ? 'Confirmando...' : isValidTransition ? 'Confirmar' : 'Continuar com Alteração Forçada'}
               </button>
             </div>
+            {error && (
+              <p className="mt-3 text-sm text-red-600">{error}</p>
+            )}
           </>
         ) : (
           <>
@@ -150,6 +183,19 @@ export default function StatusChangeModal({
               <p className="text-yellow-700 text-sm mt-1">
                 Digite a senha do administrador para confirmar esta alteração.
               </p>
+            </div>
+
+            <div className="mb-4">
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                Motivo da alteração
+              </label>
+              <textarea
+                value={reason}
+                onChange={(e) => setReason(e.target.value)}
+                className="w-full px-3 py-2 border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-red-500"
+                placeholder="Descreva o motivo da alteração fora de fluxo"
+                rows={3}
+              />
             </div>
 
             <div className="mb-4">
@@ -181,9 +227,10 @@ export default function StatusChangeModal({
               </button>
               <button
                 onClick={handleForcedChange}
-                className="flex-1 bg-red-600 text-white py-2 px-4 rounded hover:bg-red-700"
+                disabled={submitting}
+                className="flex-1 bg-red-600 text-white py-2 px-4 rounded hover:bg-red-700 disabled:opacity-60"
               >
-                Confirmar Alteração Forçada
+                {submitting ? 'Confirmando...' : 'Confirmar Alteração Forçada'}
               </button>
             </div>
           </>

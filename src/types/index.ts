@@ -13,6 +13,7 @@ export interface MeatBox {
   minKgPerPerson: number; // Minimum kg per person (0 if no minimum)
   status: BoxStatus; // Current status of the box
   paymentType: 'prepaid' | 'postpaid'; // Payment type: prepaid (at purchase) or postpaid (after delivery)
+  sendPix?: boolean; // Whether to send Pix/payment link automatically for prepaid purchases
   createdAt: string; // ISO date string
   updatedAt: string; // ISO date string
   deletedAt?: string; // ISO date string when deleted (soft delete)
@@ -55,4 +56,3 @@ export interface UserProfile {
 
 // Re-export status enums for convenience
 export { BoxStatus, OrderStatus } from './status'
-export { mapLegacyBoxStatus, mapLegacyOrderStatus } from './status'

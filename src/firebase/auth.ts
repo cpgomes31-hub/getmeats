@@ -1,4 +1,4 @@
-import { getAuth, GoogleAuthProvider, signInWithPopup, signInWithEmailAndPassword, createUserWithEmailAndPassword, signOut, onAuthStateChanged, User, connectAuthEmulator } from 'firebase/auth'
+import { getAuth, GoogleAuthProvider, signInWithPopup, signInWithEmailAndPassword, createUserWithEmailAndPassword, signOut, onAuthStateChanged, User, connectAuthEmulator, reauthenticateWithCredential, EmailAuthProvider, updateEmail } from 'firebase/auth'
 import { getFirestore, doc, setDoc, getDoc, connectFirestoreEmulator } from 'firebase/firestore'
 import { app } from './config'
 
@@ -64,3 +64,20 @@ export async function getUserProfile(uid: string) {
 }
 
 export { auth }
+
+export async function reauthenticateCurrentUser(password: string) {
+  if (!auth.currentUser || !auth.currentUser.email) {
+    throw new Error('Usuário atual não possui email cadastrado para reautenticação.')
+  }
+
+  const credential = EmailAuthProvider.credential(auth.currentUser.email, password)
+  await reauthenticateWithCredential(auth.currentUser, credential)
+}
+
+export async function updateCurrentUserEmail(newEmail: string) {
+  if (!auth.currentUser) {
+    throw new Error('Usuário não autenticado.')
+  }
+
+  await updateEmail(auth.currentUser, newEmail)
+}

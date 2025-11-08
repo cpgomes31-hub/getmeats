@@ -13,17 +13,19 @@ export default function StatusFlow({ currentStatus, type }: StatusFlowProps) {
     { status: BoxStatus.WAITING_SUPPLIER_DELIVERY, label: 'Aguardando entrega fornecedor', color: 'bg-orange-500' },
     { status: BoxStatus.SUPPLIER_DELIVERY_RECEIVED, label: 'Entrega do fornecedor recebida', color: 'bg-blue-500' },
     { status: BoxStatus.DISPATCHING, label: 'Despachando', color: 'bg-purple-500' },
-    { status: BoxStatus.COMPLETED, label: 'Finalizada', color: 'bg-gray-500' }
+    { status: BoxStatus.COMPLETED, label: 'Finalizada', color: 'bg-gray-500' },
+    { status: BoxStatus.CANCELLED, label: 'Cancelada', color: 'bg-red-600' }
   ]
 
   const orderStatuses = [
     { status: OrderStatus.WAITING_PAYMENT, label: 'Aguardando pagamento cliente', color: 'bg-orange-500' },
     { status: OrderStatus.WAITING_BOX_CLOSURE, label: 'Aguardando fechamento da caixa', color: 'bg-yellow-500' },
     { status: OrderStatus.IN_PURCHASE_PROCESS, label: 'Em processo de compra', color: 'bg-blue-500' },
-    { status: OrderStatus.WAITING_SUPPLIER, label: 'Aguardando fornecedor', color: 'bg-indigo-500' },
-    { status: OrderStatus.WAITING_CLIENT_SHIPMENT, label: 'Aguardando envio', color: 'bg-cyan-500' },
-    { status: OrderStatus.DISPATCHING_TO_CLIENT, label: 'Despachando para cliente', color: 'bg-purple-500' },
-    { status: OrderStatus.DELIVERED_TO_CLIENT, label: 'Entregue ao cliente', color: 'bg-green-500' }
+    { status: OrderStatus.WAITING_SUPPLIER, label: 'Aguardando fornecedor - frigorífico', color: 'bg-indigo-500' },
+    { status: OrderStatus.WAITING_CLIENT_SHIPMENT, label: 'Aguardando envio para o cliente', color: 'bg-cyan-500' },
+    { status: OrderStatus.DISPATCHING_TO_CLIENT, label: 'Despachando para o cliente', color: 'bg-purple-500' },
+    { status: OrderStatus.DELIVERED_TO_CLIENT, label: 'Entregue ao cliente', color: 'bg-green-500' },
+    { status: OrderStatus.CANCELLED, label: 'Cancelado', color: 'bg-red-600' }
   ]
 
   const statuses = type === 'box' ? boxStatuses : orderStatuses

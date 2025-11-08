@@ -1,18 +1,22 @@
-import React, { useState, useEffect } from 'react'
+import React, { useEffect, useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
-import { getAllBoxes, getPurchasesForBox, deleteBox, restoreBox, updateBoxStatus, permanentlyDeleteBox } from '../firebase/boxes'
+import { getAllBoxes, getPurchasesForBox, deleteBox, restoreBox, permanentlyDeleteBox, changeBoxStatus, runBatchUpdate } from '../firebase/boxes'
 import { MeatBox, BoxStatus } from '../types'
-import { mapLegacyBoxStatus } from '../types/status'
 import { useAuth } from '../context/AuthContext'
-import { saveUserProfile } from '../firebase/auth'
+import { saveUserProfile, reauthenticateCurrentUser } from '../firebase/auth'
 import StatusFlow from '../components/StatusFlow'
+import MultiSelectDropdown from '../components/MultiSelectDropdown'
+import StatusChangeModal from '../components/StatusChangeModal'
 
 export default function AdminPage() {
   const { user, profile } = useAuth()
   const [boxes, setBoxes] = useState<MeatBox[]>([])
   const [deletedBoxes, setDeletedBoxes] = useState<MeatBox[]>([])
   const [loading, setLoading] = useState(true)
-  const [filter, setFilter] = useState<'all' | 'active' | 'completed' | 'deleted'>('all')
+  const [selectedStatusFilters, setSelectedStatusFilters] = useState<BoxStatus[]>([])
+  const [includeDeleted, setIncludeDeleted] = useState(false)
+  const [pendingStatusChange, setPendingStatusChange] = useState<{ box: MeatBox; nextStatus: BoxStatus } | null>(null)
+  const [batchRunningIds, setBatchRunningIds] = useState<Record<string, boolean>>({})
 
   useEffect(() => {
     loadBoxes()
@@ -48,13 +52,34 @@ export default function AdminPage() {
     }
   }
 
-  const handleStatusChange = async (boxId: string, newStatus: BoxStatus) => {
+  const handleStatusChangeConfirm = async ({ forced, reason, password }: { forced: boolean; reason?: string; password?: string }) => {
+    if (!pendingStatusChange) return
+
     try {
-      await updateBoxStatus(boxId, newStatus)
-      await loadBoxes() // Recarregar lista
+      if (forced) {
+        if (!password) {
+          throw new Error('Informe a senha do administrador para continuar.')
+        }
+        await reauthenticateCurrentUser(password)
+      }
+
+      const actorId = user?.uid || profile?.uid || 'unknown'
+
+      await changeBoxStatus(pendingStatusChange.box, pendingStatusChange.nextStatus, {
+        userId: actorId,
+        reason,
+        force: forced,
+      })
+
+      await loadBoxes()
     } catch (error) {
       console.error('Error updating box status:', error)
+      throw error
     }
+  }
+
+  const openStatusModal = (box: MeatBox, nextStatus: BoxStatus) => {
+    setPendingStatusChange({ box, nextStatus })
   }
 
   const handleDeleteBox = async (box: MeatBox) => {
@@ -85,6 +110,20 @@ export default function AdminPage() {
     } catch (error) {
       console.error('Error deleting box:', error)
       alert('❌ Erro ao excluir caixa.')
+    }
+  }
+
+  const handleBatchUpdate = async (box: MeatBox) => {
+    try {
+      setBatchRunningIds(prev => ({ ...prev, [box.id]: true }))
+      await runBatchUpdate(box.id)
+      alert('Batch de atualização concluído para: ' + box.name)
+      await loadBoxes()
+    } catch (err) {
+      console.error('Batch update error:', err)
+      alert('Erro ao executar batch de atualização. Veja o console para mais detalhes.')
+    } finally {
+      setBatchRunningIds(prev => ({ ...prev, [box.id]: false }))
     }
   }
 
@@ -132,23 +171,19 @@ export default function AdminPage() {
     }
   }
 
-  const filteredBoxes = (() => {
-    switch (filter) {
-      case 'active':
-        return boxes.filter(b => mapLegacyBoxStatus(b.status) === BoxStatus.WAITING_PURCHASES)
-      case 'completed':
-        return boxes.filter(b => mapLegacyBoxStatus(b.status) === BoxStatus.COMPLETED)
-      case 'deleted':
-        return deletedBoxes
-      default:
-        return boxes
-    }
-  })()
+  const baseBoxes = useMemo(
+    () => (includeDeleted ? [...boxes, ...deletedBoxes] : boxes),
+    [boxes, deletedBoxes, includeDeleted]
+  )
 
-  const getStatusColor = (status: string, isDeleted: boolean = false) => {
+  const filteredBoxes = baseBoxes.filter(box => {
+    if (selectedStatusFilters.length === 0) return true
+    return selectedStatusFilters.includes(box.status as BoxStatus)
+  })
+
+  const getStatusColor = (status: BoxStatus, isDeleted: boolean = false) => {
     if (isDeleted) return 'bg-gray-100 text-gray-600'
-    const mappedStatus = mapLegacyBoxStatus(status)
-    switch (mappedStatus) {
+    switch (status) {
       case BoxStatus.WAITING_PURCHASES: return 'bg-green-100 text-green-800'
       case BoxStatus.WAITING_SUPPLIER_ORDER:
       case BoxStatus.WAITING_SUPPLIER_DELIVERY: return 'bg-yellow-100 text-yellow-800'
@@ -160,20 +195,18 @@ export default function AdminPage() {
     }
   }
 
-  const getStatusText = (status: string, isDeleted: boolean = false) => {
+  const getStatusText = (status: BoxStatus, isDeleted: boolean = false) => {
     if (isDeleted) return 'Excluída'
-    const mappedStatus = mapLegacyBoxStatus(status)
-    switch (mappedStatus) {
-      case BoxStatus.WAITING_PURCHASES: return 'Aguardando compras'
-      case BoxStatus.WAITING_SUPPLIER_ORDER: return 'Aguardando pedido ao fornecedor'
-      case BoxStatus.WAITING_SUPPLIER_DELIVERY: return 'Aguardando entrega fornecedor'
-      case BoxStatus.SUPPLIER_DELIVERY_RECEIVED: return 'Entrega do fornecedor recebida'
-      case BoxStatus.DISPATCHING: return 'Despachando'
-      case BoxStatus.COMPLETED: return 'Finalizada'
-      case BoxStatus.CANCELLED: return 'Cancelada'
-      default: return status
-    }
+    return status
   }
+
+  const statusOptions = useMemo(() => {
+    return Object.values(BoxStatus).map(status => ({
+      value: status,
+      label: getStatusText(status),
+      count: baseBoxes.filter(box => (box.status as BoxStatus) === status).length
+    }))
+  }, [baseBoxes])
 
   if (loading) {
     return (
@@ -244,47 +277,30 @@ export default function AdminPage() {
         </div>
 
         {/* Filtros */}
-        <div className="mb-6">
-          <div className="flex gap-2">
-            <button
-              onClick={() => setFilter('all')}
-              className={`px-4 py-2 rounded-lg font-medium ${
-                filter === 'all' ? 'bg-red-600 text-white' : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
-              }`}
-            >
-              Ativas ({boxes.length})
-            </button>
-            <button
-              onClick={() => setFilter('active')}
-              className={`px-4 py-2 rounded-lg font-medium ${
-                filter === 'active' ? 'bg-red-600 text-white' : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
-              }`}
-            >
-              Aguardando ({boxes.filter(b => mapLegacyBoxStatus(b.status) === BoxStatus.WAITING_PURCHASES).length})
-            </button>
-            <button
-              onClick={() => setFilter('completed')}
-              className={`px-4 py-2 rounded-lg font-medium ${
-                filter === 'completed' ? 'bg-red-600 text-white' : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
-              }`}
-            >
-              Finalizadas ({boxes.filter(b => mapLegacyBoxStatus(b.status) === BoxStatus.COMPLETED).length})
-            </button>
-            <button
-              onClick={() => setFilter('deleted')}
-              className={`px-4 py-2 rounded-lg font-medium ${
-                filter === 'deleted' ? 'bg-red-600 text-white' : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
-              }`}
-            >
-              Excluídas ({deletedBoxes.length})
-            </button>
-          </div>
+        <div className="mb-6 flex flex-wrap items-end gap-4">
+          <MultiSelectDropdown
+            label="Filtrar por status"
+            placeholder="Todos os status"
+            options={statusOptions}
+            selected={selectedStatusFilters}
+            onChange={setSelectedStatusFilters}
+          />
+          <label className="flex items-center gap-2 text-sm font-medium text-gray-700">
+            <input
+              type="checkbox"
+              checked={includeDeleted}
+              onChange={(event) => setIncludeDeleted(event.target.checked)}
+              className="h-4 w-4 rounded border-gray-300 text-red-600 focus:ring-red-500"
+            />
+            Incluir caixas excluídas ({deletedBoxes.length})
+          </label>
         </div>
 
         {/* Lista de Caixas */}
         <div className="grid gap-6">
           {filteredBoxes.map((box) => {
             const isDeleted = !!box.deletedAt
+            const boxStatus = box.status as BoxStatus
             return (
               <div key={box.id} className={`bg-white rounded-lg shadow-md p-6 ${isDeleted ? 'opacity-75 border-2 border-gray-300' : ''}`}>
                 <div className="flex justify-between items-start mb-4">
@@ -300,7 +316,7 @@ export default function AdminPage() {
                     )}
                   </div>
                   <span className={`px-3 py-1 rounded-full text-sm font-medium ${getStatusColor(box.status, isDeleted)}`}>
-                    {getStatusText(box.status, isDeleted)}
+                    {getStatusText(boxStatus, isDeleted)}
                   </span>
                 </div>
 
@@ -324,7 +340,7 @@ export default function AdminPage() {
                 </div>
 
                 {/* Fluxo de Status */}
-                <StatusFlow currentStatus={mapLegacyBoxStatus(box.status)} type="box" />
+                <StatusFlow currentStatus={boxStatus} type="box" />
 
                 {/* Barra de progresso */}
                 {!isDeleted && (
@@ -364,41 +380,48 @@ export default function AdminPage() {
                       >
                         🗑️ Excluir
                       </button>
-                      {mapLegacyBoxStatus(box.status) === BoxStatus.WAITING_PURCHASES && (
+                      <button
+                        onClick={() => handleBatchUpdate(box)}
+                        disabled={!!batchRunningIds[box.id]}
+                        className="bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2 rounded-lg text-sm font-medium"
+                      >
+                        {batchRunningIds[box.id] ? 'Processando...' : 'Batch de atualização'}
+                      </button>
+                      {boxStatus === BoxStatus.WAITING_PURCHASES && (
                         <button
-                          onClick={() => handleStatusChange(box.id, BoxStatus.WAITING_SUPPLIER_ORDER)}
+                          onClick={() => openStatusModal(box, BoxStatus.WAITING_SUPPLIER_ORDER)}
                           className="bg-yellow-600 hover:bg-yellow-700 text-white px-4 py-2 rounded-lg text-sm font-medium"
                         >
                           Iniciar Pedido ao Fornecedor
                         </button>
                       )}
-                      {mapLegacyBoxStatus(box.status) === BoxStatus.WAITING_SUPPLIER_ORDER && (
+                      {boxStatus === BoxStatus.WAITING_SUPPLIER_ORDER && (
                         <button
-                          onClick={() => handleStatusChange(box.id, BoxStatus.WAITING_SUPPLIER_DELIVERY)}
+                          onClick={() => openStatusModal(box, BoxStatus.WAITING_SUPPLIER_DELIVERY)}
                           className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg text-sm font-medium"
                         >
                           Pedido Realizado
                         </button>
                       )}
-                      {mapLegacyBoxStatus(box.status) === BoxStatus.WAITING_SUPPLIER_DELIVERY && (
+                      {boxStatus === BoxStatus.WAITING_SUPPLIER_DELIVERY && (
                         <button
-                          onClick={() => handleStatusChange(box.id, BoxStatus.SUPPLIER_DELIVERY_RECEIVED)}
+                          onClick={() => openStatusModal(box, BoxStatus.SUPPLIER_DELIVERY_RECEIVED)}
                           className="bg-purple-600 hover:bg-purple-700 text-white px-4 py-2 rounded-lg text-sm font-medium"
                         >
                           Mercadoria Recebida
                         </button>
                       )}
-                      {mapLegacyBoxStatus(box.status) === BoxStatus.SUPPLIER_DELIVERY_RECEIVED && (
+                      {boxStatus === BoxStatus.SUPPLIER_DELIVERY_RECEIVED && (
                         <button
-                          onClick={() => handleStatusChange(box.id, BoxStatus.DISPATCHING)}
+                          onClick={() => openStatusModal(box, BoxStatus.DISPATCHING)}
                           className="bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2 rounded-lg text-sm font-medium"
                         >
                           Iniciar Despacho
                         </button>
                       )}
-                      {mapLegacyBoxStatus(box.status) === BoxStatus.DISPATCHING && (
+                      {boxStatus === BoxStatus.DISPATCHING && (
                         <button
-                          onClick={() => handleStatusChange(box.id, BoxStatus.COMPLETED)}
+                          onClick={() => openStatusModal(box, BoxStatus.COMPLETED)}
                           className="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-lg text-sm font-medium"
                         >
                           Finalizar Caixa
@@ -433,6 +456,17 @@ export default function AdminPage() {
           </div>
         )}
       </div>
+      {pendingStatusChange && (
+        <StatusChangeModal
+          isOpen={!!pendingStatusChange}
+          onClose={() => setPendingStatusChange(null)}
+          currentStatus={pendingStatusChange.box.status as BoxStatus}
+          newStatus={pendingStatusChange.nextStatus}
+          type="box"
+          itemName={pendingStatusChange.box.name}
+          onConfirm={handleStatusChangeConfirm}
+        />
+      )}
     </div>
   )
 }

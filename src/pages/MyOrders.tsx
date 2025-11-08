@@ -1,18 +1,19 @@
-import React, { useEffect, useState } from 'react'
+import React, { useEffect, useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { getDoc, doc } from 'firebase/firestore'
 import { getFirestore } from 'firebase/firestore'
 import { app } from '../firebase/config'
 import { getPurchasesForUser } from '../firebase/boxes'
 import { useAuth } from '../context/AuthContext'
-import { Purchase, MeatBox, OrderStatus, mapLegacyOrderStatus } from '../types'
+import { Purchase, MeatBox, OrderStatus } from '../types'
 import StatusFlow from '../components/StatusFlow'
+import MultiSelectDropdown from '../components/MultiSelectDropdown'
 
 export default function MyOrders() {
   const [purchases, setPurchases] = useState<Purchase[]>([])
   const [boxes, setBoxes] = useState<Map<string, MeatBox>>(new Map())
   const [loading, setLoading] = useState(true)
-  const [statusFilter, setStatusFilter] = useState<OrderStatus | 'all'>('all')
+  const [selectedStatuses, setSelectedStatuses] = useState<OrderStatus[]>([])
   const { user } = useAuth()
   const navigate = useNavigate()
 
@@ -110,6 +111,26 @@ export default function MyOrders() {
     }
   }
 
+  // Filtrar apenas pedidos que têm dados válidos e cuja caixa ainda existe
+  const visiblePurchases = purchases.filter(p => p && p.boxId && p.kgPurchased && p.totalAmount && boxes.has(p.boxId))
+
+  const filteredPurchases = visiblePurchases.filter(purchase => {
+    const normalizedStatus = purchase.status as OrderStatus
+    if (selectedStatuses.length === 0) return true
+    return selectedStatuses.includes(normalizedStatus)
+  })
+
+  const statusOptions = useMemo(() => {
+    return Object.values(OrderStatus).map(status => {
+      const count = visiblePurchases.filter(purchase => (purchase.status as OrderStatus) === status).length
+      return {
+        value: status,
+        label: getStatusText(status),
+        count
+      }
+    })
+  }, [visiblePurchases])
+
   if (loading) {
     return (
       <div className="flex justify-center items-center h-64">
@@ -118,43 +139,22 @@ export default function MyOrders() {
     )
   }
 
-  // Filtrar apenas pedidos que têm dados válidos e cuja caixa ainda existe
-  const visiblePurchases = purchases.filter(p => p && p.boxId && p.kgPurchased && p.totalAmount && boxes.has(p.boxId))
-
-  const filteredPurchases = visiblePurchases.filter(purchase => {
-    if (statusFilter === 'all') return true
-    return mapLegacyOrderStatus(purchase.status) === statusFilter
-  })
-
   return (
     <div className="max-w-6xl mx-auto">
       <h1 className="text-3xl font-bold mb-8">Meus Pedidos</h1>
 
       {/* Filtros por Status */}
-      <div className="mb-6">
-        <div className="flex flex-wrap gap-2">
-          <button
-            onClick={() => setStatusFilter('all')}
-            className={`px-4 py-2 rounded-lg font-medium text-sm ${
-              statusFilter === 'all' ? 'bg-brand text-white' : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
-            }`}
-          >
-            Todos ({visiblePurchases.length})
-          </button>
-          {Object.values(OrderStatus).map((status) => {
-            const count = visiblePurchases.filter(p => mapLegacyOrderStatus(p.status) === status).length
-            return (
-              <button
-                key={status}
-                onClick={() => setStatusFilter(status)}
-                className={`px-4 py-2 rounded-lg font-medium text-sm ${
-                  statusFilter === status ? 'bg-brand text-white' : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
-                }`}
-              >
-                {getStatusText(status)} ({count})
-              </button>
-            )
-          })}
+      <div className="mb-6 flex flex-wrap items-end gap-4">
+        <div>
+          <p className="text-sm text-gray-600 mb-1">Total de pedidos: {visiblePurchases.length}</p>
+          <MultiSelectDropdown
+            label="Filtrar por status"
+            placeholder="Todos os status"
+            options={statusOptions}
+            selected={selectedStatuses}
+            onChange={setSelectedStatuses}
+            emptyLabel="Nenhum status disponível"
+          />
         </div>
       </div>
 
@@ -177,10 +177,11 @@ export default function MyOrders() {
       ) : (
         <div className="space-y-6">
           {filteredPurchases
-            .filter(purchase => purchase && purchase.boxId && purchase.kgPurchased && purchase.totalAmount) // Filtrar pedidos com dados válidos
+            .filter(purchase => purchase && purchase.boxId && purchase.kgPurchased && purchase.totalAmount)
             .map((purchase) => {
             const box = boxes.get(purchase.boxId)
             if (!box) return null
+            const normalizedStatus = purchase.status as OrderStatus
 
             return (
               <div key={purchase.id} className="bg-gray-900 rounded-lg p-6">
@@ -189,8 +190,8 @@ export default function MyOrders() {
                   <div className="flex-1">
                     <div className="flex items-center gap-4 mb-4">
                       <h3 className="text-xl font-semibold">Pedido #{purchase.orderNumber}</h3>
-                      <span className={`px-3 py-1 rounded-full text-sm font-medium ${getStatusColor(mapLegacyOrderStatus(purchase.status))}`}>
-                        {getStatusText(mapLegacyOrderStatus(purchase.status))}
+                      <span className={`px-3 py-1 rounded-full text-sm font-medium ${getStatusColor(normalizedStatus)}`}>
+                        {getStatusText(normalizedStatus)}
                       </span>
                     </div>
 
@@ -221,7 +222,7 @@ export default function MyOrders() {
                     </div>
 
                     {/* Fluxo de Status */}
-                    <StatusFlow currentStatus={mapLegacyOrderStatus(purchase.status)} type="order" />
+                    <StatusFlow currentStatus={normalizedStatus} type="order" />
 
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                       <div>

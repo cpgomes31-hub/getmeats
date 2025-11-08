@@ -14,6 +14,7 @@ interface BoxFormData {
   minKgPerPerson: number
   status: BoxStatus
   paymentType: 'prepaid' | 'postpaid'
+  sendPix: boolean
 }
 
 export default function AdminEditBox() {
@@ -32,6 +33,8 @@ export default function AdminEditBox() {
     minKgPerPerson: 1,
     status: BoxStatus.WAITING_PURCHASES,
     paymentType: 'prepaid'
+    ,
+    sendPix: true
   })
 
   useEffect(() => {
@@ -54,11 +57,12 @@ export default function AdminEditBox() {
           photos: box.photos.length > 0 ? box.photos : [''],
           pricePerKg: box.pricePerKg,
           costPerKg: box.costPerKg,
-          totalKg: box.totalKg,
-          remainingKg: box.remainingKg,
-          minKgPerPerson: box.minKgPerPerson,
+          totalKg: Math.round(box.totalKg),
+          remainingKg: Math.round(box.remainingKg),
+          minKgPerPerson: Math.round(box.minKgPerPerson),
           status: box.status,
-          paymentType: box.paymentType
+          paymentType: box.paymentType,
+          sendPix: box.sendPix ?? true
         })
       }
     } catch (error) {
@@ -70,10 +74,15 @@ export default function AdminEditBox() {
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
     const { name, value } = e.target
+    const integerFields = ['totalKg', 'remainingKg', 'minKgPerPerson']
+    const decimalFields = ['pricePerKg', 'costPerKg']
+
     setFormData(prev => ({
       ...prev,
-      [name]: name.includes('Kg') || name.includes('price') || name.includes('cost')
-        ? parseFloat(value) || 0
+      [name]: integerFields.includes(name)
+        ? (parseInt(value, 10) || 0)
+        : decimalFields.includes(name)
+        ? (parseFloat(value) || 0)
         : value
     }))
   }
@@ -224,7 +233,7 @@ export default function AdminEditBox() {
                 name="totalKg"
                 required
                 min="0"
-                step="0.1"
+                step="1"
                 value={formData.totalKg}
                 onChange={handleInputChange}
                 className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-red-500 text-gray-900"
@@ -240,7 +249,7 @@ export default function AdminEditBox() {
                 name="remainingKg"
                 required
                 min="0"
-                step="0.1"
+                step="1"
                 value={formData.remainingKg}
                 onChange={handleInputChange}
                 className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-red-500 text-gray-900"
@@ -258,12 +267,12 @@ export default function AdminEditBox() {
               type="number"
               name="minKgPerPerson"
               required
-              min="0.1"
-              step="0.1"
+              min="0"
+              step="1"
               value={formData.minKgPerPerson}
               onChange={handleInputChange}
               className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-red-500 text-gray-900"
-              placeholder="1.0"
+              placeholder="1"
             />
           </div>
 
@@ -286,6 +295,17 @@ export default function AdminEditBox() {
               <option value={BoxStatus.COMPLETED}>Finalizada</option>
               <option value={BoxStatus.CANCELLED}>Cancelada</option>
             </select>
+
+          <div className="flex items-center gap-3">
+            <input
+              type="checkbox"
+              name="sendPix"
+              checked={formData.sendPix}
+              onChange={(e) => setFormData(prev => ({ ...prev, sendPix: e.target.checked }))}
+              className="h-4 w-4 text-red-600 rounded"
+            />
+            <label className="text-sm text-gray-700">Enviar link Pix automaticamente (quando pré-pago)</label>
+          </div>
           </div>
 
           {/* Tipo de Pagamento */}
