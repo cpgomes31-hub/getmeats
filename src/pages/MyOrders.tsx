@@ -57,15 +57,15 @@ export default function MyOrders() {
 
   function getStatusColor(status: OrderStatus) {
     switch (status) {
-      case OrderStatus.WAITING_PAYMENT: return 'bg-orange-100 text-orange-800'
-      case OrderStatus.WAITING_BOX_CLOSURE: return 'bg-yellow-100 text-yellow-800'
-      case OrderStatus.IN_PURCHASE_PROCESS: return 'bg-blue-100 text-blue-800'
-      case OrderStatus.WAITING_SUPPLIER: return 'bg-purple-100 text-purple-800'
-      case OrderStatus.WAITING_CLIENT_SHIPMENT: return 'bg-indigo-100 text-indigo-800'
-      case OrderStatus.DISPATCHING_TO_CLIENT: return 'bg-cyan-100 text-cyan-800'
-      case OrderStatus.DELIVERED_TO_CLIENT: return 'bg-green-100 text-green-800'
-      case OrderStatus.CANCELLED: return 'bg-red-100 text-red-800'
-      default: return 'bg-gray-100 text-gray-800'
+      case OrderStatus.WAITING_PAYMENT: return 'bg-orange-500 text-white'
+      case OrderStatus.WAITING_BOX_CLOSURE: return 'bg-yellow-500 text-black'
+      case OrderStatus.IN_PURCHASE_PROCESS: return 'bg-blue-500 text-white'
+      case OrderStatus.WAITING_SUPPLIER: return 'bg-purple-500 text-white'
+      case OrderStatus.WAITING_CLIENT_SHIPMENT: return 'bg-indigo-500 text-white'
+      case OrderStatus.DISPATCHING_TO_CLIENT: return 'bg-cyan-500 text-black'
+      case OrderStatus.DELIVERED_TO_CLIENT: return 'bg-green-500 text-white'
+      case OrderStatus.CANCELLED: return 'bg-red-500 text-white'
+      default: return 'bg-gray-500 text-white'
     }
   }
 
@@ -85,10 +85,10 @@ export default function MyOrders() {
 
   function getPaymentStatusColor(status: string) {
     switch (status) {
-      case 'pending': return 'bg-yellow-100 text-yellow-800'
-      case 'paid': return 'bg-green-100 text-green-800'
-      case 'refunded': return 'bg-blue-100 text-blue-800'
-      default: return 'bg-gray-100 text-gray-800'
+      case 'pending': return 'bg-yellow-500 text-black'
+      case 'paid': return 'bg-green-500 text-white'
+      case 'refunded': return 'bg-blue-500 text-white'
+      default: return 'bg-gray-500 text-white'
     }
   }
 
@@ -188,46 +188,14 @@ export default function MyOrders() {
                 <div className="flex flex-col lg:flex-row lg:items-start lg:justify-between gap-6">
                   {/* Order Info */}
                   <div className="flex-1">
-                    <div className="flex items-center gap-4 mb-4">
-                      <h3 className="text-xl font-semibold">Pedido #{purchase.orderNumber}</h3>
-                      <span className={`px-3 py-1 rounded-full text-sm font-medium ${getStatusColor(normalizedStatus)}`}>
-                        {getStatusText(normalizedStatus)}
-                      </span>
-                    </div>
-
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
-                      <div>
-                        <p className="text-gray-400 text-sm">Produto</p>
-                        <p className="font-medium">{box.name}</p>
-                        <p className="text-gray-400 text-sm">{box.brand}</p>
+                    {/* Header com número do pedido e data */}
+                    <div className="flex items-center justify-between mb-4">
+                      <div className="flex-1">
+                        <h3 className="text-xl font-semibold">Pedido #{purchase.orderNumber}</h3>
                       </div>
-
-                      <div>
-                        <p className="text-gray-400 text-sm">Quantidade</p>
-                        <p className="font-medium">{purchase.kgPurchased}kg</p>
-                        <p className="text-gray-400 text-sm">R$ {box.pricePerKg?.toFixed(2) || '0.00'}/kg</p>
-                      </div>
-
-                      <div>
-                        <p className="text-gray-400 text-sm">Valor Total</p>
-                        <p className="font-medium text-lg text-brand">R$ {purchase.totalAmount?.toFixed(2) || '0.00'}</p>
-                      </div>
-
-                      <div>
-                        <p className="text-gray-400 text-sm">Status do Pagamento</p>
-                        <p className={`font-medium inline-block ${getPaymentStatusColor(purchase.paymentStatus)} px-2 py-1 rounded`}>
-                          {getPaymentStatusText(purchase.paymentStatus)}
-                        </p>
-                      </div>
-                    </div>
-
-                    {/* Fluxo de Status */}
-                    <StatusFlow currentStatus={normalizedStatus} type="order" />
-
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                      <div>
+                      <div className="flex-1 text-center">
                         <p className="text-gray-400 text-sm">Data do Pedido</p>
-                        <p className="font-medium">
+                        <p className="font-medium text-sm">
                           {new Date(purchase.createdAt).toLocaleDateString('pt-BR', {
                             day: '2-digit',
                             month: '2-digit',
@@ -237,22 +205,55 @@ export default function MyOrders() {
                           })}
                         </p>
                       </div>
+                      <div className="flex-1 text-right">
+                        <span className={`px-3 py-1 rounded-full text-sm font-medium ${getStatusColor(normalizedStatus)}`}>
+                          {getStatusText(normalizedStatus)}
+                        </span>
+                      </div>
+                    </div>
 
-                      {purchase.paymentExpiresAt && (
-                        <div>
-                          <p className="text-gray-400 text-sm">Pagamento Expira em</p>
-                          <p className="font-medium">
+                    {/* Informações do produto em linha horizontal */}
+                    <div className="flex items-center gap-4 mb-4 p-4 bg-gray-800 rounded-lg">
+                      <div className="flex-1 text-center">
+                        <p className="text-gray-400 text-sm">Produto</p>
+                        <p className="font-medium">{box.name}</p>
+                        <p className="text-gray-400 text-sm">{box.brand}</p>
+                      </div>
+
+                      <div className="flex-1 text-center">
+                        <p className="text-gray-400 text-sm">Quantidade</p>
+                        <p className="font-medium">{purchase.kgPurchased}kg</p>
+                        <p className="text-gray-400 text-xs">R$ {box.pricePerKg?.toFixed(2) || '0.00'}/kg</p>
+                      </div>
+
+                      <div className="flex-1 text-center">
+                        <p className="text-gray-400 text-sm">Valor Total</p>
+                        <p className="font-bold text-xl text-white">R$ {purchase.totalAmount?.toFixed(2) || '0.00'}</p>
+                      </div>
+
+                      <div className="flex-1 text-center">
+                        <p className="text-gray-400 text-sm">Pagamento</p>
+                        <p className={`font-medium inline-block ${getPaymentStatusColor(purchase.paymentStatus)} px-2 py-1 rounded text-sm`}>
+                          {getPaymentStatusText(purchase.paymentStatus)}
+                        </p>
+                      </div>
+
+                      {purchase.paymentExpiresAt && purchase.paymentStatus === 'pending' && (
+                        <div className="flex-1 text-center">
+                          <p className="text-gray-400 text-sm">Expira em</p>
+                          <p className="font-medium text-sm">
                             {new Date(purchase.paymentExpiresAt).toLocaleDateString('pt-BR', {
                               day: '2-digit',
                               month: '2-digit',
-                              year: 'numeric',
-                              hour: '2-digit',
-                              minute: '2-digit'
+                              year: 'numeric'
                             })}
                           </p>
                         </div>
                       )}
                     </div>
+
+                    {/* Fluxo de Status */}
+                    <StatusFlow currentStatus={normalizedStatus} type="order" />
                   </div>
 
                   {/* Actions */}

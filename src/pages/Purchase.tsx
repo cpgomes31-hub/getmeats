@@ -95,7 +95,7 @@ export default function Purchase() {
         userId: user.uid,
         kgPurchased: kg,
         totalAmount,
-        status: OrderStatus.WAITING_BOX_CLOSURE,
+        status: box.paymentType === 'prepaid' ? OrderStatus.WAITING_PAYMENT : OrderStatus.WAITING_BOX_CLOSURE,
         paymentStatus: box.paymentType === 'prepaid' ? 'pending' : 'paid',
       })
 

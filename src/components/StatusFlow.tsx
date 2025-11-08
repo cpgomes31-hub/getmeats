@@ -31,13 +31,21 @@ export default function StatusFlow({ currentStatus, type }: StatusFlowProps) {
   const statuses = type === 'box' ? boxStatuses : orderStatuses
   const currentIndex = statuses.findIndex(s => s.status === currentStatus)
 
+  // Filtrar status cancelado - só mostrar se for o status atual
+  const visibleStatuses = statuses.filter((statusItem, index) => {
+    if (statusItem.status === OrderStatus.CANCELLED || statusItem.status === BoxStatus.CANCELLED) {
+      return index === currentIndex // Só mostrar se for o status atual
+    }
+    return true // Mostrar todos os outros status
+  })
+
   return (
     <div className="mb-4">
       <div className="flex items-center justify-between relative">
         {/* Linha de conexão */}
-        <div className="absolute top-3 left-0 right-0 h-0.5 bg-gray-300 -z-10"></div>
+        <div className="absolute top-3 left-0 right-0 h-0.5 bg-gray-600 -z-10"></div>
 
-        {statuses.map((statusItem, index) => {
+        {visibleStatuses.map((statusItem, index) => {
           const isCompleted = index < currentIndex
           const isCurrent = index === currentIndex
           const isPending = index > currentIndex
@@ -51,7 +59,7 @@ export default function StatusFlow({ currentStatus, type }: StatusFlowProps) {
                     ? 'bg-green-500'
                     : isCurrent
                     ? statusItem.color
-                    : 'bg-gray-300'
+                    : 'bg-gray-400'
                 }`}
               >
                 {isCompleted ? '✓' : index + 1}
@@ -62,10 +70,10 @@ export default function StatusFlow({ currentStatus, type }: StatusFlowProps) {
                 <p
                   className={`text-xs font-medium leading-tight ${
                     isCurrent
-                      ? 'text-gray-900'
+                      ? 'text-white'
                       : isCompleted
-                      ? 'text-green-700'
-                      : 'text-gray-500'
+                      ? 'text-green-400'
+                      : 'text-gray-600'
                   }`}
                 >
                   {statusItem.label}
