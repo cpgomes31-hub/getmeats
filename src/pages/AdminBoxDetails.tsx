@@ -1,9 +1,10 @@
 import React, { useState, useEffect } from 'react'
 import { useParams, useNavigate, Link } from 'react-router-dom'
-import { getAllBoxes, getPurchasesForBox, changeBoxStatus, changePurchaseStatus } from '../firebase/boxes'
+import { getAllBoxes, getPurchasesForBox, changeBoxStatus, changePurchaseStatus, updatePurchase } from '../firebase/boxes'
 import { OrderStatus, BoxStatus } from '../types'
 import { getValidNextStatuses, isValidStatusTransition } from '../types/status'
 import StatusChangeModal from '../components/StatusChangeModal'
+import DispatchModal from '../components/DispatchModal'
 import StatusFlow from '../components/StatusFlow'
 import { getUserProfile } from '../firebase/auth'
 import { MeatBox, Purchase, UserProfile } from '../types'
@@ -19,6 +20,8 @@ export default function AdminBoxDetails() {
   const [selectedPurchase, setSelectedPurchase] = useState<Purchase | null>(null)
   const [isStatusModalOpen, setIsStatusModalOpen] = useState(false)
   const [desiredNewStatus, setDesiredNewStatus] = useState<OrderStatus | null>(null)
+  const [isDispatchModalOpen, setIsDispatchModalOpen] = useState(false)
+  const [dispatchPurchase, setDispatchPurchase] = useState<Purchase | null>(null)
 
   useEffect(() => {
     if (boxId) {
@@ -94,6 +97,30 @@ export default function AdminBoxDetails() {
     setDesiredNewStatus(null)
   }
 
+  const openDispatchModal = (purchase: Purchase) => {
+    setDispatchPurchase(purchase)
+    setIsDispatchModalOpen(true)
+  }
+
+  const closeDispatchModal = () => {
+    setIsDispatchModalOpen(false)
+    setDispatchPurchase(null)
+  }
+
+  const handleConfirmDelivery = async (purchase: Purchase) => {
+    try {
+      await changePurchaseStatus(purchase, OrderStatus.DELIVERED_TO_CLIENT, {
+        userId: user?.uid || 'system',
+        reason: 'Entrega confirmada pelo administrador'
+      })
+      await loadBoxDetails()
+      alert('Entrega confirmada com sucesso!')
+    } catch (err: any) {
+      console.error('Error confirming delivery:', err)
+      alert('Erro ao confirmar entrega: ' + err.message)
+    }
+  }
+
   const handleConfirmPurchaseStatusChange = async ({ forced }: { forced: boolean; reason?: string; password?: string }) => {
     if (!selectedPurchase || !desiredNewStatus) throw new Error('No purchase or new status selected')
     try {
@@ -138,12 +165,21 @@ export default function AdminBoxDetails() {
 
   const getPurchaseStatusColor = (status: string) => {
     switch (status) {
+      case OrderStatus.WAITING_PAYMENT: return 'bg-yellow-100 text-yellow-800'
+      case OrderStatus.WAITING_BOX_CLOSURE: return 'bg-blue-100 text-blue-800'
+      case OrderStatus.IN_PURCHASE_PROCESS: return 'bg-purple-100 text-purple-800'
+      case OrderStatus.WAITING_SUPPLIER: return 'bg-indigo-100 text-indigo-800'
+      case OrderStatus.WAITING_CLIENT_SHIPMENT: return 'bg-orange-100 text-orange-800'
+      case OrderStatus.DISPATCHING_TO_CLIENT: return 'bg-red-100 text-red-800'
+      case OrderStatus.DELIVERED_TO_CLIENT: return 'bg-green-100 text-green-800'
+      case OrderStatus.CANCELLED: return 'bg-gray-100 text-gray-800'
+      // Fallback para strings antigas
       case 'awaiting_box_closure': return 'bg-blue-100 text-blue-800'
       case 'awaiting_payment': return 'bg-yellow-100 text-yellow-800'
       case 'awaiting_supplier': return 'bg-purple-100 text-purple-800'
       case 'dispatching': return 'bg-orange-100 text-orange-800'
       case 'delivered': return 'bg-green-100 text-green-800'
-      case 'delivered_to_client': return 'bg-green-100 text-green-800' // Verde para status final
+      case 'delivered_to_client': return 'bg-green-100 text-green-800'
       case 'cancelled': return 'bg-red-100 text-red-800'
       default: return 'bg-gray-100 text-gray-800'
     }
@@ -151,6 +187,15 @@ export default function AdminBoxDetails() {
 
   const getPurchaseStatusText = (status: string) => {
     switch (status) {
+      case OrderStatus.WAITING_PAYMENT: return 'Aguardando Pagamento'
+      case OrderStatus.WAITING_BOX_CLOSURE: return 'Aguardando Fechamento'
+      case OrderStatus.IN_PURCHASE_PROCESS: return 'Em Processo'
+      case OrderStatus.WAITING_SUPPLIER: return 'Aguardando Fornecedor'
+      case OrderStatus.WAITING_CLIENT_SHIPMENT: return 'Aguardando Envio'
+      case OrderStatus.DISPATCHING_TO_CLIENT: return 'Despachando'
+      case OrderStatus.DELIVERED_TO_CLIENT: return 'Entregue'
+      case OrderStatus.CANCELLED: return 'Cancelado'
+      // Fallback para strings antigas
       case 'awaiting_box_closure': return 'Aguardando Fechamento'
       case 'awaiting_payment': return 'Aguardando Pagamento'
       case 'awaiting_supplier': return 'Aguardando Fornecedor'
@@ -372,6 +417,9 @@ export default function AdminBoxDetails() {
                       Status
                     </th>
                     <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      Despacho
+                    </th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                       Data
                     </th>
                     <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
@@ -410,16 +458,67 @@ export default function AdminBoxDetails() {
                             {getPurchaseStatusText(purchase.status)}
                           </span>
                         </td>
+                        <td className="px-6 py-4 whitespace-nowrap">
+                          {(purchase.status === OrderStatus.WAITING_CLIENT_SHIPMENT ||
+                            purchase.status === OrderStatus.DISPATCHING_TO_CLIENT ||
+                            purchase.status === OrderStatus.DELIVERED_TO_CLIENT) && (
+                            <div className="space-y-1">
+                              <div className="flex items-center text-xs">
+                                <input
+                                  type="checkbox"
+                                  checked={purchase.dispatchSteps?.orderSeparated || false}
+                                  disabled
+                                  className="mr-1 h-3 w-3"
+                                />
+                                <span className={purchase.dispatchSteps?.orderSeparated ? 'text-green-600' : 'text-gray-400'}>
+                                  Separado
+                                </span>
+                              </div>
+                              <div className="flex items-center text-xs">
+                                <input
+                                  type="checkbox"
+                                  checked={purchase.dispatchSteps?.pickedUpByDelivery || false}
+                                  disabled
+                                  className="mr-1 h-3 w-3"
+                                />
+                                <span className={purchase.dispatchSteps?.pickedUpByDelivery ? 'text-green-600' : 'text-gray-400'}>
+                                  Retirado
+                                </span>
+                              </div>
+                            </div>
+                          )}
+                        </td>
                         <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
                           {new Date(purchase.createdAt).toLocaleDateString('pt-BR')}
                         </td>
-                        <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
-                          <button
-                            onClick={() => openEditPurchaseStatus(purchase)}
-                            className="text-indigo-600 hover:text-indigo-900"
-                          >
-                            Editar Status
-                          </button>
+                        <td className="px-6 py-4 whitespace-nowrap text-sm font-medium space-y-1">
+                          {(purchase.status === OrderStatus.WAITING_CLIENT_SHIPMENT ||
+                            purchase.status === OrderStatus.DISPATCHING_TO_CLIENT) && (
+                            <button
+                              onClick={() => openDispatchModal(purchase)}
+                              className="block text-blue-600 hover:text-blue-900"
+                            >
+                              Despachar pedido
+                            </button>
+                          )}
+                          {purchase.status === OrderStatus.DISPATCHING_TO_CLIENT && 
+                           purchase.dispatchSteps?.orderSeparated && 
+                           purchase.dispatchSteps?.pickedUpByDelivery && (
+                            <button
+                              onClick={() => handleConfirmDelivery(purchase)}
+                              className="block text-green-600 hover:text-green-900 font-semibold"
+                            >
+                              Confirmar entrega
+                            </button>
+                          )}
+                          {box.paymentType !== 'prepaid' && (
+                            <button
+                              onClick={() => openEditPurchaseStatus(purchase)}
+                              className="block text-indigo-600 hover:text-indigo-900"
+                            >
+                              Editar Status
+                            </button>
+                          )}
                         </td>
                       </tr>
                     )
@@ -442,6 +541,17 @@ export default function AdminBoxDetails() {
             onConfirm={async (opts) => {
               await handleConfirmPurchaseStatusChange(opts as any)
             }}
+          />
+        )}
+
+        {/* Dispatch modal for purchases */}
+        {dispatchPurchase && (
+          <DispatchModal
+            isOpen={isDispatchModalOpen}
+            onClose={closeDispatchModal}
+            purchase={dispatchPurchase}
+            userProfile={userProfiles[dispatchPurchase.userId]}
+            onStatusChanged={loadBoxDetails}
           />
         )}
       </div>

@@ -156,6 +156,26 @@ export async function updatePurchase(purchaseId: string, updates: Partial<Purcha
     updatedAt: new Date().toISOString(),
   })
 
+  // Check if payment status was changed to 'paid' and update order status accordingly
+  if (updates.paymentStatus === 'paid') {
+    try {
+      const purchaseDoc = await getDoc(doc(db, 'purchases', purchaseId))
+      if (purchaseDoc.exists()) {
+        const purchase = purchaseDoc.data() as Purchase
+        // If payment was confirmed and order is waiting for payment, move to waiting box closure
+        if ((purchase.status as OrderStatus) === OrderStatus.WAITING_PAYMENT) {
+          await changePurchaseStatus(purchase, OrderStatus.WAITING_BOX_CLOSURE, {
+            userId: 'system',
+            reason: 'Payment confirmed - moving to waiting box closure',
+            force: false,
+          })
+        }
+      }
+    } catch (err) {
+      console.error('Error updating purchase status after payment confirmation:', err)
+    }
+  }
+
   // Update box remaining kg after updating purchase
   try {
     const purchaseDoc = await getDoc(doc(db, 'purchases', purchaseId))
@@ -240,13 +260,13 @@ async function evaluateBoxClosure(boxId: string): Promise<void> {
     const purchases = await getPurchasesForBox(boxId)
     if (!purchases || purchases.length === 0) return
 
-    const totalKgReserved = purchases.reduce((sum, p) => sum + (p.kgPurchased || 0), 0)
+    // Calculate totals excluding cancelled purchases
+    const activePurchases = purchases.filter(p => (p.status as OrderStatus) !== OrderStatus.CANCELLED)
+    const totalKgReserved = activePurchases.reduce((sum, p) => sum + (p.kgPurchased || 0), 0)
     const fullyReserved = box.totalKg > 0 ? totalKgReserved >= box.totalKg : false
 
-    // Option B: require both fully reserved AND all purchases paid to transition
-    // the box to 'Aguardando pedido ao fornecedor'. This prevents ordering before
-    // payments are settled.
-    const allPaid = purchases.every(p => p.paymentStatus === 'paid')
+    // Check if all active purchases are paid
+    const allPaid = activePurchases.every(p => p.paymentStatus === 'paid')
 
     if (fullyReserved && allPaid) {
       const previousStatus = box.status
@@ -257,13 +277,13 @@ async function evaluateBoxClosure(boxId: string): Promise<void> {
         previousStatus,
         nextStatus: BoxStatus.WAITING_SUPPLIER_ORDER,
         forced: false,
-        reason: 'Automated transition: 100% reserved and all purchases paid',
+        reason: `Automated transition: 100% reserved (${totalKgReserved}kg) and all ${activePurchases.length} active purchases paid`,
         performedBy: 'system',
       })
 
       // Update purchases that were waiting for box closure to 'Em processo de compra'
       try {
-        for (const purchase of purchases) {
+        for (const purchase of activePurchases) {
           if ((purchase.status as OrderStatus) === OrderStatus.WAITING_BOX_CLOSURE) {
             await changePurchaseStatus(purchase, OrderStatus.IN_PURCHASE_PROCESS, {
               userId: 'system',
@@ -306,75 +326,350 @@ export async function getPurchasesForUser(userId: string): Promise<Purchase[]> {
 }
 
 /**
- * Run a batch update for a box: evaluate closure rules and align purchases
- * to the box's current status. Intended to be triggered manually by admins
- * ("Batch de atualização") to re-apply automated rules.
+ * Run a comprehensive batch update for a box: validate all conditions, fix inconsistencies,
+ * and align purchases to the correct status. Intended to be triggered manually by admins
+ * ("Batch de atualização") to re-apply automated rules and fix any inconsistencies.
  */
-export async function runBatchUpdate(boxId: string): Promise<void> {
-  try {
-    // First, evaluate closure rules which may transition the box automatically
-    await evaluateBoxClosure(boxId)
+export async function runBatchUpdate(boxId: string): Promise<{
+  success: boolean
+  actions: string[]
+  errors: string[]
+}> {
+  const actions: string[] = []
+  const errors: string[] = []
 
-    // Re-load box and purchases
+  try {
+    actions.push(`🔍 Iniciando batch update para caixa ${boxId}`)
+
+    // Step 1: Load current state
     const boxDocRef = doc(db, 'boxes', boxId)
     const boxSnap = await getDoc(boxDocRef)
-    if (!boxSnap.exists()) return
-    const box = boxSnap.data() as MeatBox
+    if (!boxSnap.exists()) {
+      errors.push('Caixa não encontrada')
+      return { success: false, actions, errors }
+    }
 
+    const box = boxSnap.data() as MeatBox
     const purchases = await getPurchasesForBox(boxId)
 
-    // Align purchase statuses according to current box.status
+    actions.push(`📊 Estado atual: Caixa ${box.status}, ${purchases.length} pedidos`)
+
+    // Step 2: Validate and fix payment status transitions first
+    actions.push('💰 Verificando transições de pagamento...')
     for (const purchase of purchases) {
       try {
-        if (box.status === BoxStatus.WAITING_SUPPLIER_ORDER) {
-          if ((purchase.status as OrderStatus) === OrderStatus.WAITING_BOX_CLOSURE) {
-            await changePurchaseStatus(purchase, OrderStatus.IN_PURCHASE_PROCESS, {
-              userId: 'system',
-              reason: 'Batch update: box closed',
-              force: false,
-            })
-          }
-        } else if (box.status === BoxStatus.WAITING_SUPPLIER_DELIVERY) {
-          if ((purchase.status as OrderStatus) !== OrderStatus.CANCELLED) {
-            await changePurchaseStatus(purchase, OrderStatus.WAITING_SUPPLIER, {
-              userId: 'system',
-              reason: 'Batch update: supplier order placed',
-              // force to guarantee alignment even when intermediate transitions
-              // would otherwise block a direct move to WAITING_SUPPLIER
-              force: true,
-            })
-          }
-        } else if (box.status === BoxStatus.SUPPLIER_DELIVERY_RECEIVED) {
-          if ((purchase.status as OrderStatus) !== OrderStatus.CANCELLED) {
-            await changePurchaseStatus(purchase, OrderStatus.WAITING_CLIENT_SHIPMENT, {
-              userId: 'system',
-              reason: 'Batch update: supplier delivery received',
-              force: false,
-            })
-          }
-        } else if (box.status === BoxStatus.DISPATCHING) {
-          if ((purchase.status as OrderStatus) !== OrderStatus.CANCELLED) {
-            await changePurchaseStatus(purchase, OrderStatus.DISPATCHING_TO_CLIENT, {
-              userId: 'system',
-              reason: 'Batch update: dispatching',
-              force: false,
-            })
-          }
-        } else if (box.status === BoxStatus.COMPLETED) {
-          if ((purchase.status as OrderStatus) !== OrderStatus.CANCELLED) {
-            await changePurchaseStatus(purchase, OrderStatus.DELIVERED_TO_CLIENT, {
-              userId: 'system',
-              reason: 'Batch update: completed',
-              force: false,
-            })
-          }
+        if (purchase.paymentStatus === 'paid' && (purchase.status as OrderStatus) === OrderStatus.WAITING_PAYMENT) {
+          await changePurchaseStatus(purchase, OrderStatus.WAITING_BOX_CLOSURE, {
+            userId: 'system',
+            reason: 'Batch update: payment confirmed, moving to waiting box closure',
+            force: false,
+          })
+          actions.push(`✅ Pedido ${purchase.id}: WAITING_PAYMENT → WAITING_BOX_CLOSURE (pagamento confirmado)`)
         }
       } catch (err) {
-        console.error(`Error aligning purchase ${purchase.id} during batch update:`, err)
+        errors.push(`Erro ao corrigir pagamento do pedido ${purchase.id}: ${err}`)
       }
     }
+
+    // Step 3: Re-evaluate box closure after payment fixes
+    actions.push('🔄 Reavaliando fechamento da caixa...')
+    const closureResult = await evaluateBoxClosureComprehensive(boxId, purchases)
+    if (closureResult.transitioned) {
+      actions.push(`📦 Caixa transicionada: ${closureResult.fromStatus} → ${closureResult.toStatus}`)
+      // Reload box status after transition
+      const updatedBoxSnap = await getDoc(boxDocRef)
+      if (updatedBoxSnap.exists()) {
+        box.status = updatedBoxSnap.data().status
+      }
+    }
+
+    // Step 4: Validate purchase status consistency with box status
+    actions.push('🔍 Validando consistência entre pedidos e caixa...')
+    const consistencyIssues = validatePurchaseBoxConsistency(purchases, box.status)
+
+    if (consistencyIssues.length > 0) {
+      actions.push(`⚠️ Encontradas ${consistencyIssues.length} inconsistências`)
+      consistencyIssues.forEach(issue => actions.push(`   ${issue}`))
+    }
+
+    // Step 5: Align all purchases with current box status
+    actions.push('🔧 Alinhando pedidos com status da caixa...')
+    const alignmentResults = await alignPurchasesWithBoxStatus(boxId, box.status, purchases)
+
+    alignmentResults.forEach(result => {
+      if (result.success) {
+        actions.push(`✅ ${result.message}`)
+      } else {
+        errors.push(`❌ ${result.message}`)
+      }
+    })
+
+    // Step 6: Final validation
+    actions.push('🎯 Validação final...')
+    const finalPurchases = await getPurchasesForBox(boxId)
+    const finalConsistencyIssues = validatePurchaseBoxConsistency(finalPurchases, box.status)
+
+    if (finalConsistencyIssues.length === 0) {
+      actions.push('✅ Todos os pedidos estão consistentes com o status da caixa')
+    } else {
+      errors.push(`❌ Ainda há ${finalConsistencyIssues.length} inconsistências após alinhamento`)
+      finalConsistencyIssues.forEach(issue => errors.push(`   ${issue}`))
+    }
+
+    const success = errors.length === 0
+    actions.push(success ? '🎉 Batch update concluído com sucesso!' : '⚠️ Batch update concluído com avisos')
+
+    return { success, actions, errors }
+
   } catch (err) {
-    console.error('Error running batch update for box:', err)
-    throw err
+    errors.push(`Erro crítico no batch update: ${err}`)
+    return { success: false, actions, errors }
   }
+}
+
+/**
+ * Comprehensive box closure evaluation that handles multiple purchases correctly
+ */
+async function evaluateBoxClosureComprehensive(boxId: string, purchases: Purchase[]): Promise<{
+  transitioned: boolean
+  fromStatus?: BoxStatus
+  toStatus?: BoxStatus
+}> {
+  try {
+    const boxDocRef = doc(db, 'boxes', boxId)
+    const boxSnap = await getDoc(boxDocRef)
+    if (!boxSnap.exists()) return { transitioned: false }
+
+    const box = boxSnap.data() as MeatBox
+
+    // Only apply for prepaid boxes still waiting purchases
+    if (box.paymentType !== 'prepaid' || box.status !== BoxStatus.WAITING_PURCHASES) {
+      return { transitioned: false }
+    }
+
+    if (!purchases || purchases.length === 0) return { transitioned: false }
+
+    // Calculate totals excluding cancelled purchases
+    const activePurchases = purchases.filter(p => (p.status as OrderStatus) !== OrderStatus.CANCELLED)
+    const totalKgReserved = activePurchases.reduce((sum, p) => sum + (p.kgPurchased || 0), 0)
+    const fullyReserved = box.totalKg > 0 ? totalKgReserved >= box.totalKg : false
+
+    // Check if all active purchases are paid
+    const allPaid = activePurchases.every(p => p.paymentStatus === 'paid')
+
+    if (fullyReserved && allPaid) {
+      const fromStatus = box.status
+      await updateBoxStatus(boxId, BoxStatus.WAITING_SUPPLIER_ORDER)
+      await logStatusChange({
+        entityType: 'box',
+        entityId: boxId,
+        previousStatus: fromStatus,
+        nextStatus: BoxStatus.WAITING_SUPPLIER_ORDER,
+        forced: false,
+        reason: `Batch: 100% reserved (${totalKgReserved}kg) and all ${activePurchases.length} active purchases paid`,
+        performedBy: 'system',
+      })
+
+      // Update purchases that were waiting for box closure to 'Em processo de compra'
+      for (const purchase of activePurchases) {
+        if ((purchase.status as OrderStatus) === OrderStatus.WAITING_BOX_CLOSURE) {
+          try {
+            await changePurchaseStatus(purchase, OrderStatus.IN_PURCHASE_PROCESS, {
+              userId: 'system',
+              reason: 'Batch: box closed and all payments received',
+              force: false,
+            })
+          } catch (err) {
+            console.error(`Error updating purchase ${purchase.id} to IN_PURCHASE_PROCESS:`, err)
+          }
+        }
+      }
+
+      return {
+        transitioned: true,
+        fromStatus,
+        toStatus: BoxStatus.WAITING_SUPPLIER_ORDER
+      }
+    }
+
+    return { transitioned: false }
+
+  } catch (error) {
+    console.error('Error in evaluateBoxClosureComprehensive:', error)
+    return { transitioned: false }
+  }
+}
+
+/**
+ * Validate consistency between purchase statuses and box status
+ * For DISPATCHING status, allow purchases to be in different dispatch states
+ */
+function validatePurchaseBoxConsistency(purchases: Purchase[], boxStatus: BoxStatus): string[] {
+  const issues: string[] = []
+  const activePurchases = purchases.filter(p => (p.status as OrderStatus) !== OrderStatus.CANCELLED)
+
+  for (const purchase of purchases) {
+    const purchaseStatus = purchase.status as OrderStatus
+
+    // Skip cancelled purchases - they can be in any state
+    if (purchaseStatus === OrderStatus.CANCELLED) continue
+
+    // Check payment consistency for prepaid boxes
+    if (purchase.paymentStatus !== 'paid' && purchaseStatus !== OrderStatus.WAITING_PAYMENT) {
+      issues.push(`Pedido ${purchase.id}: status ${purchaseStatus} mas pagamento ${purchase.paymentStatus}`)
+    }
+
+    // Special handling for DISPATCHING status - allow multiple states
+    if (boxStatus === BoxStatus.DISPATCHING) {
+      const validDispatchStatuses = [
+        OrderStatus.WAITING_CLIENT_SHIPMENT,
+        OrderStatus.DISPATCHING_TO_CLIENT,
+        OrderStatus.DELIVERED_TO_CLIENT
+      ]
+
+      if (!validDispatchStatuses.includes(purchaseStatus)) {
+        issues.push(`Pedido ${purchase.id}: status ${purchaseStatus} inválido para caixa em despacho`)
+      }
+      continue
+    }
+
+    // Check status alignment with box for other statuses
+    const expectedStatus = getExpectedPurchaseStatusForBox(boxStatus)
+    if (expectedStatus && purchaseStatus !== expectedStatus) {
+      issues.push(`Pedido ${purchase.id}: status ${purchaseStatus} mas caixa ${boxStatus} espera ${expectedStatus}`)
+    }
+  }
+
+  return issues
+}
+
+/**
+ * Get expected purchase status for a given box status
+ * Returns null for statuses where purchases can be in different states
+ */
+function getExpectedPurchaseStatusForBox(boxStatus: BoxStatus): OrderStatus | null {
+  switch (boxStatus) {
+    case BoxStatus.WAITING_PURCHASES:
+      return null // Can be WAITING_PAYMENT or WAITING_BOX_CLOSURE depending on payment type
+    case BoxStatus.WAITING_SUPPLIER_ORDER:
+      return OrderStatus.IN_PURCHASE_PROCESS
+    case BoxStatus.WAITING_SUPPLIER_DELIVERY:
+      return OrderStatus.WAITING_SUPPLIER
+    case BoxStatus.SUPPLIER_DELIVERY_RECEIVED:
+      return OrderStatus.WAITING_CLIENT_SHIPMENT
+    case BoxStatus.DISPATCHING:
+      return null // Purchases can be in WAITING_CLIENT_SHIPMENT, DISPATCHING_TO_CLIENT, or DELIVERED_TO_CLIENT
+    case BoxStatus.COMPLETED:
+      return OrderStatus.DELIVERED_TO_CLIENT
+    default:
+      return null
+  }
+}
+
+/**
+ * Align all purchases with the current box status
+ * IMPORTANT: This function should NEVER regress purchase status.
+ * It should only advance purchases that are behind the expected status.
+ */
+async function alignPurchasesWithBoxStatus(
+  boxId: string,
+  boxStatus: BoxStatus,
+  purchases: Purchase[]
+): Promise<Array<{ success: boolean, message: string }>> {
+  const results: Array<{ success: boolean, message: string }> = []
+
+  for (const purchase of purchases) {
+    try {
+      const purchaseStatus = purchase.status as OrderStatus
+
+      // Skip cancelled purchases
+      if (purchaseStatus === OrderStatus.CANCELLED) {
+        results.push({ success: true, message: `Pedido ${purchase.id}: cancelado (mantido)` })
+        continue
+      }
+
+      let targetStatus: OrderStatus | null = null
+      let reason = ''
+
+      switch (boxStatus) {
+        case BoxStatus.WAITING_SUPPLIER_ORDER:
+          if (purchaseStatus === OrderStatus.WAITING_BOX_CLOSURE) {
+            targetStatus = OrderStatus.IN_PURCHASE_PROCESS
+            reason = 'Batch: box closed'
+          }
+          break
+
+        case BoxStatus.WAITING_SUPPLIER_DELIVERY:
+          // Only advance if purchase is behind
+          if (purchaseStatus === OrderStatus.IN_PURCHASE_PROCESS ||
+              purchaseStatus === OrderStatus.WAITING_BOX_CLOSURE) {
+            targetStatus = OrderStatus.WAITING_SUPPLIER
+            reason = 'Batch: supplier order placed'
+          }
+          break
+
+        case BoxStatus.SUPPLIER_DELIVERY_RECEIVED:
+          // Only advance if purchase is behind
+          if (purchaseStatus === OrderStatus.WAITING_SUPPLIER ||
+              purchaseStatus === OrderStatus.IN_PURCHASE_PROCESS ||
+              purchaseStatus === OrderStatus.WAITING_BOX_CLOSURE) {
+            targetStatus = OrderStatus.WAITING_CLIENT_SHIPMENT
+            reason = 'Batch: supplier delivery received'
+          }
+          break
+
+        case BoxStatus.DISPATCHING:
+          // CRITICAL: DO NOT automatically advance purchases to DISPATCHING_TO_CLIENT
+          // This should only happen when admin manually clicks "Despachar pedido"
+          // and confirms with the dispatch checklist
+          results.push({
+            success: true,
+            message: `Pedido ${purchase.id}: aguardando despacho manual (${purchaseStatus})`
+          })
+          continue
+
+        case BoxStatus.COMPLETED:
+          // Only advance if purchase is behind, never regress
+          if (purchaseStatus === OrderStatus.DISPATCHING_TO_CLIENT ||
+              purchaseStatus === OrderStatus.WAITING_CLIENT_SHIPMENT ||
+              purchaseStatus === OrderStatus.WAITING_SUPPLIER ||
+              purchaseStatus === OrderStatus.IN_PURCHASE_PROCESS ||
+              purchaseStatus === OrderStatus.WAITING_BOX_CLOSURE) {
+            targetStatus = OrderStatus.DELIVERED_TO_CLIENT
+            reason = 'Batch: completed'
+          }
+          break
+      }
+
+      if (targetStatus && purchaseStatus !== targetStatus) {
+        await changePurchaseStatus(purchase, targetStatus, {
+          userId: 'system',
+          reason,
+          force: true, // Force alignment during batch update
+        })
+        results.push({
+          success: true,
+          message: `Pedido ${purchase.id}: ${purchaseStatus} → ${targetStatus} (${reason})`
+        })
+      } else if (targetStatus && purchaseStatus === targetStatus) {
+        results.push({
+          success: true,
+          message: `Pedido ${purchase.id}: já está correto (${purchaseStatus})`
+        })
+      } else {
+        results.push({
+          success: true,
+          message: `Pedido ${purchase.id}: mantido em ${purchaseStatus} (não deve regredir)`
+        })
+      }
+
+    } catch (err) {
+      results.push({
+        success: false,
+        message: `Erro ao alinhar pedido ${purchase.id}: ${err}`
+      })
+    }
+  }
+
+  return results
 }

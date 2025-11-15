@@ -31,12 +31,13 @@ export default function StatusFlow({ currentStatus, type }: StatusFlowProps) {
   const statuses = type === 'box' ? boxStatuses : orderStatuses
   const currentIndex = statuses.findIndex(s => s.status === currentStatus)
 
-  // Filtrar status cancelado - só mostrar se for o status atual
-  const visibleStatuses = statuses.filter((statusItem, index) => {
-    if (statusItem.status === OrderStatus.CANCELLED || statusItem.status === BoxStatus.CANCELLED) {
-      return index === currentIndex // Só mostrar se for o status atual
-    }
-    return true // Mostrar todos os outros status
+  // Sempre mostrar todos os status, mas posicionar CANCELLED no final
+  // e só destacá-lo quando for o status atual
+  const visibleStatuses = [...statuses].sort((a, b) => {
+    // CANCELLED sempre por último
+    if (a.status === OrderStatus.CANCELLED || a.status === BoxStatus.CANCELLED) return 1
+    if (b.status === OrderStatus.CANCELLED || b.status === BoxStatus.CANCELLED) return -1
+    return 0
   })
 
   return (
@@ -45,10 +46,12 @@ export default function StatusFlow({ currentStatus, type }: StatusFlowProps) {
         {/* Linha de conexão */}
         <div className="absolute top-3 left-0 right-0 h-0.5 bg-gray-600 -z-10"></div>
 
-        {visibleStatuses.map((statusItem, index) => {
-          const isCompleted = index < currentIndex
-          const isCurrent = index === currentIndex
-          const isPending = index > currentIndex
+        {visibleStatuses.map((statusItem) => {
+          // Encontrar o índice correto no array original
+          const originalIndex = statuses.findIndex(s => s.status === statusItem.status)
+          const isCompleted = originalIndex < currentIndex
+          const isCurrent = originalIndex === currentIndex
+          const isPending = originalIndex > currentIndex
 
           return (
             <div key={statusItem.status} className="flex flex-col items-center flex-1">
@@ -62,24 +65,22 @@ export default function StatusFlow({ currentStatus, type }: StatusFlowProps) {
                     : 'bg-gray-400'
                 }`}
               >
-                {isCompleted ? '✓' : index + 1}
+                {isCompleted ? '✓' : originalIndex + 1}
               </div>
 
               {/* Label do status */}
-              <div className="text-center">
+              <div className="text-center min-h-[2.5rem] flex items-center justify-center">
                 <p
-                  className={`text-xs font-medium leading-tight ${
+                  className={`text-sm font-medium leading-tight ${
                     isCurrent
-                      ? 'text-white'
+                      ? 'text-blue-600 font-bold'
                       : isCompleted
-                      ? 'text-green-400'
-                      : 'text-gray-600'
+                      ? 'text-green-600'
+                      : 'text-gray-500'
                   }`}
                 >
                   {statusItem.label}
                 </p>
-
-                {/* Indicador de status atual removido - agora está no topo */}
               </div>
             </div>
           )

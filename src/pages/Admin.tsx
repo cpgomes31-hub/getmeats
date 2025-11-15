@@ -116,12 +116,39 @@ export default function AdminPage() {
   const handleBatchUpdate = async (box: MeatBox) => {
     try {
       setBatchRunningIds(prev => ({ ...prev, [box.id]: true }))
-      await runBatchUpdate(box.id)
-      alert('Batch de atualização concluído para: ' + box.name)
+
+      const result = await runBatchUpdate(box.id)
+
+      // Create detailed message
+      let message = `Batch concluído para: ${box.name}\n\n`
+
+      if (result.actions.length > 0) {
+        message += '📋 Ações realizadas:\n'
+        result.actions.forEach(action => {
+          message += `• ${action}\n`
+        })
+        message += '\n'
+      }
+
+      if (result.errors.length > 0) {
+        message += '⚠️ Avisos/Erros:\n'
+        result.errors.forEach(error => {
+          message += `• ${error}\n`
+        })
+        message += '\n'
+      }
+
+      if (result.success) {
+        message += '✅ Batch executado com sucesso!'
+      } else {
+        message += '❌ Batch executado com problemas. Verifique os avisos acima.'
+      }
+
+      alert(message)
       await loadBoxes()
     } catch (err) {
       console.error('Batch update error:', err)
-      alert('Erro ao executar batch de atualização. Veja o console para mais detalhes.')
+      alert('Erro crítico ao executar batch de atualização. Veja o console para mais detalhes.')
     } finally {
       setBatchRunningIds(prev => ({ ...prev, [box.id]: false }))
     }

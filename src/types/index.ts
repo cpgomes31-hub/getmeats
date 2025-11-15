@@ -32,6 +32,12 @@ export interface Purchase {
   paymentExpiresAt?: string; // When the payment expires (ISO date string)
   actualKgDelivered?: number; // Actual kg delivered (filled by manager)
   refundAmount?: number; // Refund amount if applicable
+  dispatchSteps?: {
+    orderSeparated: boolean; // Pedido separado
+    pickedUpByDelivery: boolean; // Retirado pelo entregador
+    separatedAt?: string; // ISO date when order was separated
+    pickedUpAt?: string; // ISO date when picked up by delivery
+  }; // Dispatch checklist steps
   createdAt: string; // ISO date string
   updatedAt: string; // ISO date string
 }
